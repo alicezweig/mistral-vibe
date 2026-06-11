@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 from vibe.core.agents import AgentProfile
@@ -150,36 +151,34 @@ def make_plan_agent_reminder(
     has_ask_user_question: bool = True,
     has_exit_plan_mode: bool = True,
 ) -> str:
-    instructions = [
-        "Research the user's query using read-only tools (grep, read, etc.)"
-    ]
-    if has_ask_user_question:
-        instructions.append(
-            "If you are unsure about requirements or approach, use the ask_user_question tool to clarify before finalizing your plan"
-        )
-    instructions.append("Write your plan to the plan file above")
-    if has_exit_plan_mode:
-        instructions.append(
-            "When your plan is complete, call the exit_plan_mode tool to request user approval and switch to implementation mode"
-        )
-    else:
-        instructions.append(
-            "When your plan is complete, present it to the user and tell them to switch modes if they approve the plan"
-        )
-    numbered = "\n".join(f"{i}. {step}" for i, step in enumerate(instructions, start=1))
+    plan_folder_path = Path(plan_file_path).parent
+    plan_file_name = Path(plan_file_path).name
 
-    return f"""<{VIBE_WARNING_TAG}>Plan mode is active. You MUST NOT make any edits (except to the plan file below, or in your scratchpad), run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supersedes any other instructions you have received.
+    # instructions = [
+    #     "Research the user's query using read-only tools (grep, read, etc.)"
+    # ]
+    # if has_ask_user_question:
+    #     instructions.append(
+    #         "If you are unsure about requirements or approach, use the ask_user_question tool to clarify before finalizing your plan"
+    #     )
+    # instructions.append("Write your plan to the plan file above")
+    # if has_exit_plan_mode:
+    #     instructions.append(
+    #         "When your plan is complete, call the exit_plan_mode tool to request user approval and switch to implementation mode"
+    #     )
+    # else:
+    #     instructions.append(
+    #         "When your plan is complete, present it to the user and tell them to switch modes if they approve the plan"
+    #     )
+    # numbered = "\n".join(f"{i}. {step}" for i, step in enumerate(instructions, start=1))
 
-## Plan File Info
-Create or edit your plan at {plan_file_path} using the write_file and edit tools.
-Build your plan incrementally by writing to or editing this file.
-This is the only file you are allowed to edit. Make sure to create it early and edit as soon as you internally update your plan.
+    return f"""<{VIBE_WARNING_TAG}>Plan mode is active. You MUST NOT make any edits (except to the files in plan folder below, or in your scratchpad), run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supersedes any other instructions you have received.
 
-## Instructions
-{numbered}</{VIBE_WARNING_TAG}>"""
+## Plan Folder Info
+ is {plan_folder_path}, and PLAN_FILE is {plan_file_name}.</{VIBE_WARNING_TAG}>"""
 
 
-PLAN_AGENT_EXIT = f"""<{VIBE_WARNING_TAG}>Plan mode has ended. If you have a plan ready, you can now start executing it. If not, you can now use editing tools and make changes to the system.</{VIBE_WARNING_TAG}>"""
+PLAN_AGENT_EXIT = f"""<{VIBE_WARNING_TAG}>Plan mode has ended. You can now use editing tools and make changes to the system.</{VIBE_WARNING_TAG}>"""
 
 CHAT_AGENT_REMINDER = f"""<{VIBE_WARNING_TAG}>Chat mode is active. The user wants to have a conversation -- ask questions, get explanations, or discuss code and architecture. You MUST NOT make any edits, run any non-readonly tools, or otherwise make any changes to the system. This supersedes any other instructions you have received. Instead, you should:
 1. Answer the user's questions directly and comprehensively
