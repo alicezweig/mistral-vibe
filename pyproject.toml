@@ -78,6 +78,7 @@ dependencies = [
     "opentelemetry-semantic-conventions==0.60b1",
     "packaging==26.2",
     "pexpect==4.9.0",
+    "pillow>=12.2.0",
     "platformdirs==4.9.6",
     "protobuf==6.33.6",
     "ptyprocess==0.7.0",

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum, auto
 from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,3 +49,35 @@ class ConfigChangeEvent:
     before: dict[str, Any]
     after: dict[str, Any]
     reason: str
+
+
+class TuiPetAnchor(StrEnum):
+    """Vertical anchor position for the pet widget.
+    
+    Determines where the pet is positioned relative to the chat interface.
+    """
+
+    COMPOSER = "composer"
+    SCREEN_BOTTOM = "screen_bottom"
+
+
+class TuiConfig(BaseModel):
+    """Textual UI configuration options.
+    
+    Includes settings for the chat interface, display options, and pets.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Pet configuration
+    pet: str | None = Field(
+        default="codex",
+        description="ID of the pet to display (e.g., 'codex', 'dewey'). "
+                    "Set to 'disabled' or null to disable pets.",
+        examples=["codex", "dewey", "disabled", None],
+    )
+    
+    pet_anchor: TuiPetAnchor = Field(
+        default=TuiPetAnchor.COMPOSER,
+        description="Vertical anchor position for the pet widget.",
+    )

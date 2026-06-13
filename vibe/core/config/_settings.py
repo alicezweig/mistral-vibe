@@ -35,6 +35,7 @@ import tomli_w
 
 from vibe.core.agents.models import BuiltinAgentName
 from vibe.core.config.harness_files import get_harness_files_manager
+from vibe.core.config.types import TuiConfig, TuiPetAnchor
 from vibe.core.logger import logger
 from vibe.core.paths import GLOBAL_ENV_FILE, SESSION_LOG_DIR
 from vibe.core.prompts import (
@@ -585,11 +586,19 @@ DEFAULT_TTS_MODELS = [DEFAULT_ACTIVE_TTS_MODEL_CONFIG]
 
 DEFAULT_THEME = "ansi-dark"
 
+# Pet defaults
+DEFAULT_PET_ID: str | None = "codex"
+DEFAULT_PET_ANCHOR = TuiPetAnchor.COMPOSER
+
 
 class VibeConfig(BaseSettings):
     active_model: str = DEFAULT_ACTIVE_MODEL_CONFIG.alias
     vim_keybindings: bool = False
     theme: str = DEFAULT_THEME
+    tui: TuiConfig = Field(
+        default_factory=TuiConfig,
+        description="Textual UI configuration",
+    )
     disable_welcome_banner_animation: bool = False
     autocopy_to_clipboard: bool = True
     file_watcher_for_autocomplete: bool = False

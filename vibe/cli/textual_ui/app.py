@@ -51,6 +51,15 @@ from vibe.cli.textual_ui.notifications import (
     NotificationPort,
     TextualNotificationAdapter,
 )
+
+# Pet imports
+from vibe.cli.textual_ui.pets import (
+    DISABLED_PET_ID,
+    PetImageSupport,
+    PetWidget,
+    load_pet,
+)
+from vibe.cli.textual_ui.pets.models import AmbientPet, PetNotificationKind
 from vibe.cli.textual_ui.quit_manager import QuitManager
 from vibe.cli.textual_ui.remote import RemoteSessionManager, is_progress_event
 from vibe.cli.textual_ui.scheduled_loop_runner import ScheduledLoopRunner
@@ -389,7 +398,7 @@ class VibeApp(App):  # noqa: PLR0904
         patch_driver_parser(driver_class)
         return driver_class
 
-    def __init__(
+    def __init__(  # noqa: PLR0915
         self,
         agent_loop: AgentLoop,
         startup: StartupOptions | None = None,
@@ -405,6 +414,12 @@ class VibeApp(App):  # noqa: PLR0904
     ) -> None:
         super().__init__(**kwargs)
         self.agent_loop = agent_loop
+        
+        # Pet system state
+        self._ambient_pet: AmbientPet | None = None
+        self._pet_widget: PetWidget | None = None
+        self._pet_cache_dir: Path | None = None
+        
         self._plan_info: PlanInfo | None = None
         self._voice_manager: VoiceManagerPort = (
             voice_manager or self._make_default_voice_manager()
@@ -624,6 +639,11 @@ class VibeApp(App):  # noqa: PLR0904
             yield NoMarkupStatic(id="spacer")
             yield ContextProgress()
 
+        # Create and yield pet widget
+        # Note: Pet is loaded in on_ready after widgets are mounted
+        self._pet_widget = PetWidget()
+        yield self._pet_widget
+
     @property
     def _messages_area(self) -> Widget:
         if self._cached_messages_area is None:
@@ -698,6 +718,30 @@ class VibeApp(App):  # noqa: PLR0904
         gc.collect()
         gc.freeze()
 
+    async def on_ready(self) -> None:
+        """Called when the app is ready (after mount)."""
+        await super().on_ready()
+        
+        # Set up pet cache directory
+        from vibe.core.paths import CACHE_DIR
+        self._pet_cache_dir = CACHE_DIR
+        
+        # Load configured pet
+        if hasattr(self, 'config') and self.config:
+            pet_id = getattr(self.config.tui, 'pet', None)
+            if pet_id and pet_id != DISABLED_PET_ID:
+                self._load_pet(pet_id)
+            else:
+                # Explicitly disable pets
+                self._disable_pet()
+        
+        # Log terminal support info (debug level)
+        support = PetImageSupport.detect()
+        if support.is_supported:
+            logger.debug(f"Pet display supported via {support.protocol}")
+        else:
+            logger.debug(f"Pet display not supported: {support.reason}")
+
     def _show_config_issues(self) -> None:
         for issue in (
             *self.agent_loop.hook_config_issues,
@@ -709,6 +753,61 @@ class VibeApp(App):  # noqa: PLR0904
                 markup=False,
                 timeout=10,
             )
+
+    def _load_pet(self, pet_id: str | None) -> None:
+        """Load and display a pet by ID.
+        
+        Args:
+            pet_id: The pet ID to load, or None to disable
+        """
+        if pet_id is None or pet_id == DISABLED_PET_ID:
+            self._disable_pet()
+            return
+        
+        if self._pet_cache_dir is None:
+            from vibe.core.paths import CACHE_DIR
+            self._pet_cache_dir = CACHE_DIR
+        
+        # Load pet (may return None if terminal not supported or pet not found)
+        ambient_pet = load_pet(pet_id, self._pet_cache_dir)
+        
+        if ambient_pet:
+            self._ambient_pet = ambient_pet
+            if self._pet_widget:
+                self._pet_widget.set_pet(ambient_pet)
+            
+            logger.info(f"Loaded pet: {pet_id}")
+        else:
+            # Pet loading failed (unsupported terminal, invalid pet, etc.)
+            self._disable_pet()
+            
+            logger.warning(f"Failed to load pet: {pet_id}")
+
+    def _disable_pet(self) -> None:
+        """Disable the pet display."""
+        if self._pet_widget:
+            self._pet_widget.set_pet(None)
+        self._ambient_pet = None
+
+    def set_pet_notification(self, kind: PetNotificationKind, body: str | None) -> None:
+        """Set the pet's notification state.
+        
+        This should be called when application state changes to update
+        the pet's animation.
+        
+        Args:
+            kind: The notification kind (RUNNING, WAITING, REVIEW, FAILED)
+            body: Optional custom message
+        """
+        if self._ambient_pet and self._pet_widget:
+            self._ambient_pet.set_notification(kind, body)
+            self._pet_widget._update_frame()
+
+    def clear_pet_notification(self) -> None:
+        """Clear the pet's notification, returning to idle."""
+        if self._ambient_pet and self._pet_widget:
+            self._ambient_pet.clear_notification()
+            self._pet_widget._update_frame()
 
     async def _watch_init_completion(self) -> None:
         """Show 'Initializing' loading indicator until background init finishes."""

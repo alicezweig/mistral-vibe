@@ -4,6 +4,8 @@ from vibe.core.config._settings import (
     DEFAULT_CONSOLE_BASE_URL,
     DEFAULT_MISTRAL_API_ENV_KEY,
     DEFAULT_MODELS,
+    DEFAULT_PET_ANCHOR,
+    DEFAULT_PET_ID,
     DEFAULT_PROVIDERS,
     DEFAULT_THEME,
     DEFAULT_TRANSCRIBE_MODELS,
@@ -67,7 +69,12 @@ from vibe.core.config.schema import (
     WithShallowMerge,
     WithUnionMerge,
 )
-from vibe.core.config.types import MISSING_CONFIG_FILE_FINGERPRINT, LayerConfigSnapshot
+from vibe.core.config.types import (
+    MISSING_CONFIG_FILE_FINGERPRINT,
+    LayerConfigSnapshot,
+    TuiConfig,
+    TuiPetAnchor,
+)
 from vibe.core.config.vibe_schema import VibeConfigSchema
 from vibe.core.prompts import MissingPromptFileError
 
@@ -75,6 +82,8 @@ __all__ = [
     "DEFAULT_CONSOLE_BASE_URL",
     "DEFAULT_MISTRAL_API_ENV_KEY",
     "DEFAULT_MODELS",
+    "DEFAULT_PET_ANCHOR",
+    "DEFAULT_PET_ID",
     "DEFAULT_PROVIDERS",
     "DEFAULT_THEME",
     "DEFAULT_TRANSCRIBE_MODELS",
@@ -126,6 +135,8 @@ __all__ = [
     "TranscribeProviderConfig",
     "TrustNotResolvedError",
     "TrustResolutionError",
+    "TuiConfig",
+    "TuiPetAnchor",
     "UntrustedLayerError",
     "VibeConfig",
     "VibeConfigSchema",
