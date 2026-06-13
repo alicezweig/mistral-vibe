@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+from typing import ClassVar
 
 from textual.widget import Widget
 
@@ -30,7 +31,7 @@ class PetWidget(Widget):
         ambient_pet: The AmbientPet being displayed, or None if no pet
     """
 
-    DEFAULT_CLASSES = "pet-widget"
+    DEFAULT_CLASSES: ClassVar[str] = "pet-widget"
 
     def __init__(self, ambient_pet: AmbientPet | None = None) -> None:
         """Initialize the pet widget.

@@ -19,6 +19,22 @@ Usage:
 """
 from __future__ import annotations
 
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+# Lazy import to avoid circular dependency
+if TYPE_CHECKING:
+    from vibe.cli.textual_ui.widgets.pet_widget import PetWidget
+
+
+def __getattr__(name: str) -> object:
+    """Lazy import for PetWidget to avoid circular dependency."""
+    if name == "PetWidget":
+        from vibe.cli.textual_ui.widgets.pet_widget import PetWidget
+        return PetWidget
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 from vibe.cli.textual_ui.pets.asset_manager import AssetManager
 from vibe.cli.textual_ui.pets.catalog import (
     get_all_available_pets,
@@ -74,7 +90,6 @@ from vibe.cli.textual_ui.pets.models import (
     PetNotification,
     PetNotificationKind,
 )
-from vibe.cli.textual_ui.widgets.pet_widget import PetWidget
 
 # --- Public Functions ---
 
