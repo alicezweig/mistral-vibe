@@ -48,6 +48,7 @@ TRUSTED_FOLDERS_FILE = GlobalPath(lambda: VIBE_HOME.path / "trusted_folders.toml
 LOG_DIR = GlobalPath(lambda: VIBE_HOME.path / "logs")
 LOG_FILE = GlobalPath(lambda: VIBE_HOME.path / "logs" / "vibe.log")
 CACHE_FILE = GlobalPath(lambda: VIBE_HOME.path / "cache.toml")
+CACHE_DIR = GlobalPath(lambda: VIBE_HOME.path / "cache")
 HISTORY_FILE = GlobalPath(lambda: VIBE_HOME.path / "vibehistory")
 PLANS_DIR = GlobalPath(_get_plans_dir)
 

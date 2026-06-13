@@ -17,6 +17,7 @@ Usage:
     # Update pet state
     ambient_pet.set_notification(PetNotificationKind.RUNNING, None)
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -31,6 +32,7 @@ def __getattr__(name: str) -> object:
     """Lazy import for PetWidget to avoid circular dependency."""
     if name == "PetWidget":
         from vibe.cli.textual_ui.widgets.pet_widget import PetWidget
+
         return PetWidget
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
@@ -83,6 +85,7 @@ from vibe.cli.textual_ui.pets.image_protocol import (
     detect_sixel_support,
     detect_windows_terminal,
 )
+from vibe.cli.textual_ui.pets.messages import PetClearNotification, PetSetNotification
 from vibe.cli.textual_ui.pets.models import (
     AmbientPet,
     Animation,
@@ -92,6 +95,7 @@ from vibe.cli.textual_ui.pets.models import (
 )
 
 # --- Public Functions ---
+
 
 def load_pet(pet_id: str, cache_dir: Path | None = None) -> AmbientPet | None:
     """Load a pet by ID, downloading assets if needed and extracting frames.
@@ -128,7 +132,7 @@ def load_pet(pet_id: str, cache_dir: Path | None = None) -> AmbientPet | None:
 
     # Determine cache directory
     if cache_dir is None:
-        base_cache_dir = CACHE_DIR
+        base_cache_dir = Path(CACHE_DIR.path)
     else:
         base_cache_dir = Path(cache_dir)
 
@@ -136,12 +140,14 @@ def load_pet(pet_id: str, cache_dir: Path | None = None) -> AmbientPet | None:
     support = PetImageSupport.detect()
     if not support.is_supported:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.debug(f"Pets not supported: {support.reason}")
         return None
 
     # Try to load pet definition
     pet: Pet | None = None
+    custom_dir: Path | None = None
 
     if pet_id in BUILTIN_PETS:
         # Built-in pet
@@ -155,17 +161,20 @@ def load_pet(pet_id: str, cache_dir: Path | None = None) -> AmbientPet | None:
                 pet = Pet.from_manifest(manifest_path)
             except Exception as e:
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Failed to load custom pet {pet_id}: {e}")
                 return None
         else:
             import logging
+
             logger = logging.getLogger(__name__)
             logger.warning(f"Custom pet {pet_id} not found at {custom_dir}")
             return None
 
     if pet is None:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(f"Pet {pet_id} not found (not built-in or custom)")
         return None
@@ -175,6 +184,7 @@ def load_pet(pet_id: str, cache_dir: Path | None = None) -> AmbientPet | None:
         pet.validate()
     except AssertionError as e:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(f"Invalid pet configuration for {pet_id}: {e}")
         return None
@@ -186,28 +196,45 @@ def load_pet(pet_id: str, cache_dir: Path | None = None) -> AmbientPet | None:
         spritesheet_path = asset_mgr.ensure_builtin_pet(pet_id)
     else:
         # For custom pets, spritesheet should be in the same directory as manifest
+        if custom_dir is None:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Custom pet {pet_id} has no custom_dir defined")
+            return None
         spritesheet_path = custom_dir / pet.spritesheet_path.name
 
     if spritesheet_path is None or not spritesheet_path.exists():
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(f"Spritesheet not found for pet {pet_id}")
         return None
 
     # Extract frames
     cache_key = FrameExtractor.cache_key(pet)
-    frame_cache_dir = base_cache_dir / "pets" / PET_PACK_VERSION / "frame-cache" / pet.id / cache_key / "frames"
+    frame_cache_dir = (
+        base_cache_dir
+        / "pets"
+        / PET_PACK_VERSION
+        / "frame-cache"
+        / pet.id
+        / cache_key
+        / "frames"
+    )
 
     try:
         frames = FrameExtractor.extract_frames(pet, spritesheet_path, frame_cache_dir)
     except Exception as e:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(f"Failed to extract frames for pet {pet_id}: {e}")
         return None
 
     if len(frames) == 0:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(f"No frames extracted for pet {pet_id}")
         return None
@@ -219,7 +246,7 @@ def load_pet(pet_id: str, cache_dir: Path | None = None) -> AmbientPet | None:
         support=support.protocol,
         animations_enabled=True,
         notification=None,
-        animation_started_at=__import__('time').time(),
+        animation_started_at=__import__("time").time(),
     )
 
 
@@ -274,11 +301,14 @@ def get_pet_draw_request(
 
 # --- Exports ---
 
-__all__ = [
+__all__ = [  # noqa: RUF022
+    # Messages
+    "PetClearNotification",
+    "PetSetNotification",
     # Models
-    "Pet",
-    "Animation", 
     "AmbientPet",
+    "Animation",
+    "Pet",
     "PetNotification",
     "PetNotificationKind",
     # Widget

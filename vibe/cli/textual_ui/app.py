@@ -55,7 +55,9 @@ from vibe.cli.textual_ui.notifications import (
 # Pet imports
 from vibe.cli.textual_ui.pets import (
     DISABLED_PET_ID,
+    PetClearNotification,
     PetImageSupport,
+    PetSetNotification,
     PetWidget,
     load_pet,
 )
@@ -805,6 +807,25 @@ class VibeApp(App):  # noqa: PLR0904
 
     def clear_pet_notification(self) -> None:
         """Clear the pet's notification, returning to idle."""
+        if self._ambient_pet and self._pet_widget:
+            self._ambient_pet.clear_notification()
+            self._pet_widget._update_frame()
+
+    def on_pet_set_notification(self, message: PetSetNotification) -> None:
+        """Handle pet notification set message.
+        
+        This message handler updates the pet's animation state based on
+        application state changes (RUNNING, WAITING, REVIEW, FAILED).
+        """
+        if self._ambient_pet and self._pet_widget:
+            self._ambient_pet.set_notification(message.kind, message.body)
+            self._pet_widget._update_frame()
+
+    def on_pet_clear_notification(self, message: PetClearNotification) -> None:
+        """Handle pet notification clear message.
+        
+        This message handler returns the pet to its idle animation state.
+        """
         if self._ambient_pet and self._pet_widget:
             self._ambient_pet.clear_notification()
             self._pet_widget._update_frame()
@@ -1847,6 +1868,8 @@ class VibeApp(App):  # noqa: PLR0904
                 await self._remove_loading_widget()
                 if self._remote_manager.is_active:
                     await self._handle_remote_waiting_input(event)
+                # Post WAITING state message when user input is needed
+                self.post_message(PetSetNotification(PetNotificationKind.WAITING, None))
             elif isinstance(event, HookStartEvent):
                 await self._ensure_loading_widget(f"Running hook {event.hook_name}")
             elif self._loading_widget is None and is_progress_event(event):
@@ -1867,7 +1890,10 @@ class VibeApp(App):  # noqa: PLR0904
         self._agent_running = True
 
         await self._remove_loading_widget()
+        # Post RUNNING state message when agent starts processing
+        self.post_message(PetSetNotification(PetNotificationKind.RUNNING, None))
 
+        turn_succeeded = False
         try:
             await self._handle_agent_loop_init()
             await self._ensure_loading_widget()
@@ -1903,11 +1929,19 @@ class VibeApp(App):  # noqa: PLR0904
                 )
             ) as events:
                 await self._handle_agent_loop_events(events)
+            turn_succeeded = True
         except asyncio.CancelledError:
+            # Post FAILED message for cancelled turns
+            self.post_message(PetSetNotification(
+                PetNotificationKind.FAILED, "Turn cancelled"
+            ))
             await self._handle_turn_error()
             self._narrator_manager.on_turn_cancel()
             raise
         except Exception as e:
+            # Post FAILED message for errors
+            error_msg = str(e)[:50]
+            self.post_message(PetSetNotification(PetNotificationKind.FAILED, error_msg))
             await self._handle_turn_error()
 
             # _watch_init_completion already rendered the fatal startup error
@@ -1935,6 +1969,11 @@ class VibeApp(App):  # noqa: PLR0904
             self._queue.start_drain_if_needed()
             await self._refresh_windowing_from_history()
             self._terminal_notifier.notify(NotificationContext.COMPLETE)
+            # Post REVIEW if turn succeeded
+            if turn_succeeded:
+                self.post_message(PetSetNotification(
+                    PetNotificationKind.REVIEW, "Ready for your review"
+                ))
 
     def _resolve_turn_error_message(self, e: Exception) -> str:
         if isinstance(e, RateLimitError):
@@ -2529,6 +2568,10 @@ class VibeApp(App):  # noqa: PLR0904
         await self._switch_to_input_app()
 
     async def on_remote_stream_error(self, error: str) -> None:
+        # Post FAILED message for remote stream errors
+        self.post_message(PetSetNotification(
+            PetNotificationKind.FAILED, error[:50]
+        ))
         await self._mount_and_scroll(
             ErrorMessage(error, collapsed=self._tools_collapsed)
         )
