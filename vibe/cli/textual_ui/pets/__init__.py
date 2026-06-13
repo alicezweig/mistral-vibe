@@ -5,7 +5,7 @@ animated pets in Mistral Vibe. Pets respond to application state changes with
 different animations (idle, running, waiting, review, failed).
 
 Supported terminals:
-- Alacritty (Kitty graphics protocol)
+- Kitty protocol terminals (Kitty, Ghostty, WezTerm, iTerm2 >= 3.6.0)
 - Windows Terminal (Sixel protocol)
 
 Usage:
@@ -61,8 +61,8 @@ from vibe.cli.textual_ui.pets.image_protocol import (
     KittyEncoder,
     PetImageSupport,
     SixelEncoder,
-    detect_alacritty,
-    detect_kitty_support,
+    detect_iterm2_kitty_support,
+    detect_kitty_terminal,
     detect_multiplexer,
     detect_sixel_support,
     detect_windows_terminal,
@@ -294,8 +294,8 @@ __all__ = [
     "KittyEncoder",
     "SixelEncoder",
     "detect_multiplexer",
-    "detect_kitty_support",
-    "detect_alacritty",
+    "detect_kitty_terminal",
+    "detect_iterm2_kitty_support",
     "detect_sixel_support",
     "detect_windows_terminal",
     "PET_IMAGE_ID",

@@ -1,7 +1,8 @@
 """Textual widget for displaying animated pets.
 
-This widget renders pet frames using either Kitty graphics protocol (Alacritty)
-or Sixel protocol (Windows Terminal), depending on terminal support.
+This widget renders pet frames using either Kitty graphics protocol
+(Kitty, Ghostty, WezTerm, iTerm2) or Sixel protocol (Windows Terminal),
+depending on terminal support.
 """
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ class PetWidget(Widget):
     """Textual widget that displays the animated pet.
 
     The pet animation automatically updates based on the ambient pet's state.
-    Uses Kitty protocol for Alacritty and Sixel protocol for Windows Terminal.
+    Uses Kitty protocol for Kitty-compatible terminals and Sixel protocol for Windows Terminal.
 
     Attributes:
         ambient_pet: The AmbientPet being displayed, or None if no pet

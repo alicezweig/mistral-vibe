@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from vibe.cli.textual_ui.pets.constants import KITTY_IMAGE_ID
-
 """Terminal image protocol detection and encoding for pets.
-Supports: Alacritty (Kitty protocol) and Windows Terminal (Sixel protocol).
+Supports: Kitty protocol terminals and Windows Terminal (Sixel protocol).
 """
 import base64
 from dataclasses import dataclass
@@ -14,7 +12,7 @@ from pathlib import Path
 
 from PIL import Image
 
-# Import constants for backward compatibility
+from vibe.cli.textual_ui.pets.constants import KITTY_IMAGE_ID
 
 # --- Enums ---
 
@@ -22,7 +20,7 @@ from PIL import Image
 class ImageProtocol(StrEnum):
     """Supported terminal image protocols."""
 
-    KITTY = auto()  # Kitty graphics protocol (Alacritty)
+    KITTY = auto()  # Kitty graphics protocol
     SIXEL = auto()  # Sixel protocol (Windows Terminal)
     UNSUPPORTED = auto()
 
@@ -53,8 +51,8 @@ class PetImageSupport:
                 "Terminal multiplexer detected (tmux/zellij/screen)",
             )
 
-        # Try Kitty protocol (Alacritty)
-        if detect_kitty_support():
+        # Try Kitty protocol
+        if detect_kitty_terminal():
             return cls(ImageProtocol.KITTY, True, None)
 
         # Try Sixel protocol (Windows Terminal)
@@ -81,45 +79,47 @@ def detect_multiplexer() -> bool:
     )
 
 
-def detect_kitty_support() -> bool:
+def detect_kitty_terminal() -> bool:
     """Detect if terminal supports Kitty graphics protocol.
-    Currently only checks for Alacritty.
+    
+    Supports: Kitty terminal, Ghostty, WezTerm, iTerm2 >= 3.6.0
 
     Returns:
-        True if Alacritty >= 0.12.0 is detected
+        True if terminal supports Kitty protocol
     """
-    return detect_alacritty()
-
-
-def detect_alacritty() -> bool:
-    """Detect if running in Alacritty terminal with Kitty protocol support.
-
-    Alacritty added experimental Kitty graphics protocol support in version 0.12.0.
-    The user must also enable it in their config:
-        window:
-          experimental:
-            kitty_graphics: true
-
-    Returns:
-        True if TERM contains 'alacritty' and version >= 0.12.0
-    """
-    # Check TERM environment variable
     term = os.environ.get("TERM", "").lower()
-    if "alacritty" not in term:
-        return False
+    term_program = os.environ.get("TERM_PROGRAM", "").lower()
+    
+    # Check TERM for known Kitty-supporting terminals
+    if any(t in term for t in ["kitty", "ghostty", "wezterm"]):
+        return True
+    
+    # Check TERM_PROGRAM for known Kitty-supporting terminals
+    if any(t in term_program for t in ["kitty", "ghostty", "wezterm"]):
+        return True
+    
+    # Special case: iTerm2 requires version check
+    if "iterm" in term or "iterm" in term_program:
+        return detect_iterm2_kitty_support()
+    
+    return False
 
-    # Check version >= 0.12.0
-    version_str = os.environ.get("ALACRITTY_VERSION", "0.12.0")
+
+def detect_iterm2_kitty_support() -> bool:
+    """Check if iTerm2 version supports Kitty protocol (>= 3.6.0)."""
+    version_str = os.environ.get("ITERM2_VERSION", "")
+    # Also check TERM_PROGRAM_VERSION
+    if not version_str:
+        version_str = os.environ.get("TERM_PROGRAM_VERSION", "")
+    
     try:
         parts = version_str.split(".")
-        # Pad to 3 parts for comparison
-        major = int(parts[0]) if len(parts) > 0 else 0
-        minor = int(parts[1]) if len(parts) > 1 else 0
+        major = int(parts[0]) if len(parts) > 0 else 3
+        minor = int(parts[1]) if len(parts) > 1 else 6
         patch = int(parts[2]) if len(parts) > 2 else 0
-        return (major, minor, patch) >= (0, 12, 0)
+        return (major, minor, patch) >= (3, 6, 0)
     except (ValueError, IndexError):
-        # Cannot parse version, assume it's recent enough
-        # Will fail gracefully if protocol not actually supported
+        # Cannot parse, assume recent
         return True
 
 
@@ -349,8 +349,8 @@ __all__ = [
     "KittyEncoder",
     "PetImageSupport",
     "SixelEncoder",
-    "detect_alacritty",
-    "detect_kitty_support",
+    "detect_iterm2_kitty_support",
+    "detect_kitty_terminal",
     "detect_multiplexer",
     "detect_sixel_support",
     "detect_windows_terminal",
