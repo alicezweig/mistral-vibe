@@ -722,8 +722,6 @@ class VibeApp(App):  # noqa: PLR0904
 
     async def on_ready(self) -> None:
         """Called when the app is ready (after mount)."""
-        await super().on_ready()
-
         # Set up pet cache directory
         from vibe.core.paths import CACHE_DIR
 
