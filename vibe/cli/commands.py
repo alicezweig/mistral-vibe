@@ -179,6 +179,11 @@ class CommandRegistry:
                 description="Select theme",
                 handler="_show_theme",
             ),
+            "pet": Command(
+                aliases=frozenset(["/pet"]),
+                description="Select a pet",
+                handler="_show_pet",
+            ),
         }
 
     @property

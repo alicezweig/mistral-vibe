@@ -416,12 +416,12 @@ class VibeApp(App):  # noqa: PLR0904
     ) -> None:
         super().__init__(**kwargs)
         self.agent_loop = agent_loop
-        
+
         # Pet system state
         self._ambient_pet: AmbientPet | None = None
         self._pet_widget: PetWidget | None = None
         self._pet_cache_dir: Path | None = None
-        
+
         self._plan_info: PlanInfo | None = None
         self._voice_manager: VoiceManagerPort = (
             voice_manager or self._make_default_voice_manager()
@@ -723,20 +723,21 @@ class VibeApp(App):  # noqa: PLR0904
     async def on_ready(self) -> None:
         """Called when the app is ready (after mount)."""
         await super().on_ready()
-        
+
         # Set up pet cache directory
         from vibe.core.paths import CACHE_DIR
-        self._pet_cache_dir = CACHE_DIR
-        
+
+        self._pet_cache_dir = CACHE_DIR.path
+
         # Load configured pet
-        if hasattr(self, 'config') and self.config:
-            pet_id = getattr(self.config.tui, 'pet', None)
+        if hasattr(self, "config") and self.config:
+            pet_id = getattr(self.config.tui, "pet", None)
             if pet_id and pet_id != DISABLED_PET_ID:
                 self._load_pet(pet_id)
             else:
                 # Explicitly disable pets
                 self._disable_pet()
-        
+
         # Log terminal support info (debug level)
         support = PetImageSupport.detect()
         if support.is_supported:
@@ -758,31 +759,32 @@ class VibeApp(App):  # noqa: PLR0904
 
     def _load_pet(self, pet_id: str | None) -> None:
         """Load and display a pet by ID.
-        
+
         Args:
             pet_id: The pet ID to load, or None to disable
         """
         if pet_id is None or pet_id == DISABLED_PET_ID:
             self._disable_pet()
             return
-        
+
         if self._pet_cache_dir is None:
             from vibe.core.paths import CACHE_DIR
-            self._pet_cache_dir = CACHE_DIR
-        
+
+            self._pet_cache_dir = CACHE_DIR.path
+
         # Load pet (may return None if terminal not supported or pet not found)
         ambient_pet = load_pet(pet_id, self._pet_cache_dir)
-        
+
         if ambient_pet:
             self._ambient_pet = ambient_pet
             if self._pet_widget:
                 self._pet_widget.set_pet(ambient_pet)
-            
+
             logger.info(f"Loaded pet: {pet_id}")
         else:
             # Pet loading failed (unsupported terminal, invalid pet, etc.)
             self._disable_pet()
-            
+
             logger.warning(f"Failed to load pet: {pet_id}")
 
     def _disable_pet(self) -> None:
@@ -793,10 +795,10 @@ class VibeApp(App):  # noqa: PLR0904
 
     def set_pet_notification(self, kind: PetNotificationKind, body: str | None) -> None:
         """Set the pet's notification state.
-        
+
         This should be called when application state changes to update
         the pet's animation.
-        
+
         Args:
             kind: The notification kind (RUNNING, WAITING, REVIEW, FAILED)
             body: Optional custom message
@@ -813,7 +815,7 @@ class VibeApp(App):  # noqa: PLR0904
 
     def on_pet_set_notification(self, message: PetSetNotification) -> None:
         """Handle pet notification set message.
-        
+
         This message handler updates the pet's animation state based on
         application state changes (RUNNING, WAITING, REVIEW, FAILED).
         """
@@ -823,7 +825,7 @@ class VibeApp(App):  # noqa: PLR0904
 
     def on_pet_clear_notification(self, message: PetClearNotification) -> None:
         """Handle pet notification clear message.
-        
+
         This message handler returns the pet to its idle animation state.
         """
         if self._ambient_pet and self._pet_widget:
@@ -1932,9 +1934,9 @@ class VibeApp(App):  # noqa: PLR0904
             turn_succeeded = True
         except asyncio.CancelledError:
             # Post FAILED message for cancelled turns
-            self.post_message(PetSetNotification(
-                PetNotificationKind.FAILED, "Turn cancelled"
-            ))
+            self.post_message(
+                PetSetNotification(PetNotificationKind.FAILED, "Turn cancelled")
+            )
             await self._handle_turn_error()
             self._narrator_manager.on_turn_cancel()
             raise
@@ -1971,9 +1973,11 @@ class VibeApp(App):  # noqa: PLR0904
             self._terminal_notifier.notify(NotificationContext.COMPLETE)
             # Post REVIEW if turn succeeded
             if turn_succeeded:
-                self.post_message(PetSetNotification(
-                    PetNotificationKind.REVIEW, "Ready for your review"
-                ))
+                self.post_message(
+                    PetSetNotification(
+                        PetNotificationKind.REVIEW, "Ready for your review"
+                    )
+                )
 
     def _resolve_turn_error_message(self, e: Exception) -> str:
         if isinstance(e, RateLimitError):
@@ -2277,6 +2281,31 @@ class VibeApp(App):  # noqa: PLR0904
             return
         await self._switch_to_theme_picker_app()
 
+    async def _show_pet(self, **kwargs: Any) -> None:
+        """Show the pet picker modal screen."""
+        from vibe.cli.textual_ui.pets.picker import PetPickerScreen
+        from vibe.core.paths import CACHE_DIR
+
+        # Ensure pet cache dir is set (should be set in on_ready)
+        if self._pet_cache_dir is None:
+            self._pet_cache_dir = CACHE_DIR.path
+
+        picker = PetPickerScreen(
+            config=self.config,
+            cache_dir=self._pet_cache_dir,
+            current_pet_id=getattr(self.config.tui, "pet", None),
+            on_select=self._on_pet_selected,
+        )
+        await self.push_screen(picker)
+
+    def _on_pet_selected(self, pet_id: str | None) -> None:
+        """Handle pet selection from picker."""
+        if pet_id is None:
+            pet_id = DISABLED_PET_ID
+
+        VibeConfig.save_updates({"pet": pet_id})
+        self._load_pet(pet_id)
+
     async def _show_proxy_setup(self, **kwargs: Any) -> None:
         if self._current_bottom_app == BottomApp.ProxySetup:
             return
@@ -2569,9 +2598,7 @@ class VibeApp(App):  # noqa: PLR0904
 
     async def on_remote_stream_error(self, error: str) -> None:
         # Post FAILED message for remote stream errors
-        self.post_message(PetSetNotification(
-            PetNotificationKind.FAILED, error[:50]
-        ))
+        self.post_message(PetSetNotification(PetNotificationKind.FAILED, error[:50]))
         await self._mount_and_scroll(
             ErrorMessage(error, collapsed=self._tools_collapsed)
         )
