@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from vibe import VIBE_ROOT
+from vibe.core.utils.paths import is_dangerous_directory
 
 
 class GlobalPath:
@@ -26,19 +27,25 @@ def _get_vibe_home() -> Path:
 
 
 def _get_plans_dir() -> Path:
-    return (
-        (Path.cwd() / ".vibe" / "plans")
-        if (Path.cwd() / ".vibe" / "plans").is_dir()
-        else (VIBE_HOME.path / "plans")
-    )
+    cwd_name = Path.cwd().name
+    default_plans_dir = VIBE_HOME.path / "plans"
+    is_dangerous, _ = is_dangerous_directory()
+    if cwd_name.startswith(".") or is_dangerous:
+        return default_plans_dir
+    plans_dir = VIBE_HOME.path / "plans" / cwd_name
+    plans_dir.mkdir(parents=True, exist_ok=True)
+    return plans_dir
 
 
 def _get_session_log_dir() -> Path:
-    return (
-        (Path.cwd() / ".vibe" / "session")
-        if (Path.cwd() / ".vibe" / "session").is_dir()
-        else (VIBE_HOME.path / "session")
-    )
+    cwd_name = Path.cwd().name
+    default_session_log_dir = VIBE_HOME.path / "session"
+    is_dangerous, _ = is_dangerous_directory()
+    if cwd_name.startswith(".") or is_dangerous:
+        return default_session_log_dir
+    session_dir = VIBE_HOME.path / "session" / cwd_name
+    session_dir.mkdir(parents=True, exist_ok=True)
+    return session_dir
 
 
 VIBE_HOME = GlobalPath(_get_vibe_home)
