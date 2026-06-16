@@ -119,8 +119,7 @@ class TestAgentSafety:
 
 class TestAgentProfile:
     def test_all_builtin_agents_have_valid_names(self) -> None:
-        acp_only = {BuiltinAgentName.CHAT}
-        assert set(BUILTIN_AGENTS.keys()) == set(BuiltinAgentName) - acp_only
+        assert set(BUILTIN_AGENTS.keys()) == set(BuiltinAgentName)
 
     def test_display_name_property(self) -> None:
         assert BUILTIN_AGENTS[BuiltinAgentName.DEFAULT].display_name == "Default"
@@ -155,6 +154,7 @@ class TestAgentProfile:
         ]
         assert set(agents) == {
             BuiltinAgentName.DEFAULT,
+            BuiltinAgentName.CHAT,
             BuiltinAgentName.PLAN,
             BuiltinAgentName.ACCEPT_EDITS,
             BuiltinAgentName.AUTO_APPROVE,
@@ -388,8 +388,9 @@ class TestAgentManagerCycling:
             config=base_config, agent_name=BuiltinAgentName.DEFAULT, backend=backend
         )
         order = agent.agent_manager.get_agent_order()
-        assert len(order) == 4
+        assert len(order) == 5
         assert BuiltinAgentName.DEFAULT in order
+        assert BuiltinAgentName.CHAT in order
         assert BuiltinAgentName.AUTO_APPROVE in order
         assert BuiltinAgentName.PLAN in order
         assert BuiltinAgentName.ACCEPT_EDITS in order

@@ -150,6 +150,7 @@ class AgentManager:
     def get_agent_order(self) -> list[str]:
         builtin_order: list[str] = [
             BuiltinAgentName.DEFAULT,
+            BuiltinAgentName.CHAT,
             BuiltinAgentName.PLAN,
             BuiltinAgentName.ACCEPT_EDITS,
             BuiltinAgentName.AUTO_APPROVE,
