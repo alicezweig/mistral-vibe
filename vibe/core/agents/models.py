@@ -203,7 +203,7 @@ BUILTIN_AGENTS: dict[str, AgentProfile] = {
     BuiltinAgentName.CHAT: CHAT,
     BuiltinAgentName.PLAN: PLAN,
     BuiltinAgentName.ACCEPT_EDITS: ACCEPT_EDITS,
-    BuiltinAgentName.AUTO_APPROVE: AUTO_APPROVE,
+    # BuiltinAgentName.AUTO_APPROVE: AUTO_APPROVE,
     BuiltinAgentName.EXPLORE: EXPLORE,
     BuiltinAgentName.LEAN: LEAN,
 }
