@@ -1245,6 +1245,19 @@ ContextProgress {
     }
 }
 
+ModelDisplay {
+    width: auto;
+    height: auto;
+    background: transparent;
+    padding: 0;
+    margin: 0 0 0 0;
+    color: $secondary;
+
+    &:ansi {
+        text-style: dim;
+    }
+}
+
 NarratorStatus {
     width: auto;
     height: auto;

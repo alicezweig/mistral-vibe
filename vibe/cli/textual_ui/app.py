@@ -99,6 +99,7 @@ from vibe.cli.textual_ui.widgets.messages import (
     WarningMessage,
     WhatsNewMessage,
 )
+from vibe.cli.textual_ui.widgets.model_display import ModelDisplay
 from vibe.cli.textual_ui.widgets.model_picker import ModelPickerApp
 from vibe.cli.textual_ui.widgets.narrator_status import NarratorStatus
 from vibe.cli.textual_ui.widgets.no_markup_static import (
@@ -470,6 +471,7 @@ class VibeApp(App):  # noqa: PLR0904
         self._cached_messages_area: Widget | None = None
         self._cached_chat: ChatScroll | None = None
         self._cached_loading_area: Widget | None = None
+        self._cached_model_display: ModelDisplay | None = None
         self._log_reader = LogReader()
         self._debug_console: DebugConsole | None = None
         self._switch_agent_generation = 0
@@ -637,6 +639,7 @@ class VibeApp(App):  # noqa: PLR0904
 
         with Horizontal(id="bottom-bar"):
             yield PathDisplay(self.config.displayed_workdir or Path.cwd())
+            yield ModelDisplay()
             yield NoMarkupStatic(id="spacer")
             yield ContextProgress()
 
@@ -657,6 +660,12 @@ class VibeApp(App):  # noqa: PLR0904
         if self._cached_loading_area is None:
             self._cached_loading_area = self.query_one("#loading-area-content")
         return self._cached_loading_area
+
+    @property
+    def _model_display(self) -> ModelDisplay:
+        if self._cached_model_display is None:
+            self._cached_model_display = self.query_one(ModelDisplay)
+        return self._cached_model_display
 
     async def on_mount(self) -> None:
         self._apply_theme(self.config.theme)
@@ -682,6 +691,7 @@ class VibeApp(App):  # noqa: PLR0904
 
         self.agent_loop.stats.add_listener("context_tokens", update_context_progress)
         self.agent_loop.stats.trigger_listeners()
+        self._cached_model_display = self.query_one(ModelDisplay)
 
         self.agent_loop.set_approval_callback(self._approval_callback)
         self.agent_loop.set_user_input_callback(self._user_input_callback)
@@ -2526,6 +2536,7 @@ class VibeApp(App):  # noqa: PLR0904
                     hooks_count=self.agent_loop.hooks_count,
                     plan_description=plan_title(self._plan_info),
                 )
+            self._model_display.refresh_display()
             self._show_config_issues()
             await self._mount_and_scroll(
                 UserCommandMessage(
