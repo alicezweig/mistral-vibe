@@ -20,7 +20,7 @@ class PlanSession:
             # slug = create_slug()
             # timestamp = int(time.time())
             # self._plan_file_path = PLANS_DIR.path / f"{timestamp}-{slug}" / "plan.md"
-            self._plan_file_path = PLANS_DIR.path / "SPEC.md"
+            self._plan_file_path = PLANS_DIR.path / "plan.md"
         return self._plan_file_path
 
     @property
