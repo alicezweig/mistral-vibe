@@ -756,10 +756,10 @@ class VibeConfig(BaseSettings):
         ),
     )
     default_agent: str = Field(
-        default=BuiltinAgentName.DEFAULT,
+        default=BuiltinAgentName.PLAN,
         description=(
             "Agent profile to use when no --agent flag is passed. "
-            "Builtin: default, plan, accept-edits, auto-approve. "
+            "Builtin: plan, chat, accept-edits, auto-approve. "
             "Applies in both interactive and programmatic (-p/--prompt) mode."
         ),
     )

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-import time
 
+# import time
 from vibe.core.paths import PLANS_DIR
 from vibe.core.utils.io import read_safe
-from vibe.core.utils.slug import create_slug
+
+# from vibe.core.utils.slug import create_slug
 
 
 class PlanSession:
@@ -16,9 +17,10 @@ class PlanSession:
     @property
     def plan_file_path(self) -> Path:
         if self._plan_file_path is None:
-            slug = create_slug()
-            timestamp = int(time.time())
-            self._plan_file_path = PLANS_DIR.path / f"{timestamp}-{slug}" / "plan.md"
+            # slug = create_slug()
+            # timestamp = int(time.time())
+            # self._plan_file_path = PLANS_DIR.path / f"{timestamp}-{slug}" / "plan.md"
+            self._plan_file_path = PLANS_DIR.path / "SPEC.md"
         return self._plan_file_path
 
     @property

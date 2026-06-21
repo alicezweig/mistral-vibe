@@ -199,9 +199,9 @@ LEAN = AgentProfile(
 )
 
 BUILTIN_AGENTS: dict[str, AgentProfile] = {
-    BuiltinAgentName.DEFAULT: DEFAULT,
-    BuiltinAgentName.CHAT: CHAT,
     BuiltinAgentName.PLAN: PLAN,
+    # BuiltinAgentName.DEFAULT: DEFAULT,
+    BuiltinAgentName.CHAT: CHAT,
     BuiltinAgentName.ACCEPT_EDITS: ACCEPT_EDITS,
     # BuiltinAgentName.AUTO_APPROVE: AUTO_APPROVE,
     BuiltinAgentName.EXPLORE: EXPLORE,
