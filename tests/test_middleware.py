@@ -454,12 +454,7 @@ class TestReadOnlyAgentMiddlewareIntegration:
         self,
     ) -> None:
         config = build_test_vibe_config(
-            system_prompt_id="tests",
-            include_project_context=False,
-            include_prompt_detail=False,
-            include_model_info=False,
-            include_commit_signature=False,
-            enabled_tools=[],
+            include_model_info=False, include_commit_signature=False, enabled_tools=[]
         )
         agent = build_test_agent_loop(config=config, agent_name=BuiltinAgentName.PLAN)
 
@@ -487,12 +482,7 @@ class TestReadOnlyAgentMiddlewareIntegration:
     @pytest.mark.asyncio
     async def test_switch_agent_allows_reinjection_on_reentry(self) -> None:
         config = build_test_vibe_config(
-            system_prompt_id="tests",
-            include_project_context=False,
-            include_prompt_detail=False,
-            include_model_info=False,
-            include_commit_signature=False,
-            enabled_tools=[],
+            include_model_info=False, include_commit_signature=False, enabled_tools=[]
         )
         agent = build_test_agent_loop(config=config, agent_name=BuiltinAgentName.PLAN)
 
@@ -523,12 +513,7 @@ class TestReadOnlyAgentMiddlewareIntegration:
     @pytest.mark.asyncio
     async def test_switch_plan_to_auto_approve_fires_exit(self) -> None:
         config = build_test_vibe_config(
-            system_prompt_id="tests",
-            include_project_context=False,
-            include_prompt_detail=False,
-            include_model_info=False,
-            include_commit_signature=False,
-            enabled_tools=[],
+            include_model_info=False, include_commit_signature=False, enabled_tools=[]
         )
         agent = build_test_agent_loop(config=config, agent_name=BuiltinAgentName.PLAN)
 
@@ -551,12 +536,7 @@ class TestReadOnlyAgentMiddlewareIntegration:
     @pytest.mark.asyncio
     async def test_switch_between_non_plan_agents_no_injection(self) -> None:
         config = build_test_vibe_config(
-            system_prompt_id="tests",
-            include_project_context=False,
-            include_prompt_detail=False,
-            include_model_info=False,
-            include_commit_signature=False,
-            enabled_tools=[],
+            include_model_info=False, include_commit_signature=False, enabled_tools=[]
         )
         agent = build_test_agent_loop(
             config=config, agent_name=BuiltinAgentName.DEFAULT
@@ -582,12 +562,7 @@ class TestReadOnlyAgentMiddlewareIntegration:
     async def test_full_lifecycle_plan_default_plan_default(self) -> None:
         """Integration test for a full plan -> default -> plan -> default cycle."""
         config = build_test_vibe_config(
-            system_prompt_id="tests",
-            include_project_context=False,
-            include_prompt_detail=False,
-            include_model_info=False,
-            include_commit_signature=False,
-            enabled_tools=[],
+            include_model_info=False, include_commit_signature=False, enabled_tools=[]
         )
         agent = build_test_agent_loop(config=config, agent_name=BuiltinAgentName.PLAN)
 
