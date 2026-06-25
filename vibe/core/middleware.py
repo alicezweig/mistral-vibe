@@ -172,10 +172,10 @@ def make_plan_agent_reminder(
     #     )
     # numbered = "\n".join(f"{i}. {step}" for i, step in enumerate(instructions, start=1))
 
-    return f"""<{VIBE_WARNING_TAG}>Plan mode is active. You MUST NOT make any edits (except to the files in plan folder below, or in your scratchpad), run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supersedes any other instructions you have received. PLAN_FOLDER is {plan_folder_path}, PLAN_FILE is {plan_file_name}.</{VIBE_WARNING_TAG}>"""
+    return f"""<{VIBE_WARNING_TAG}>Plan mode is active. You MUST NOT make any edits (except to the files in plan folder below, or in your scratchpad), run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supersedes any other instructions you have received. PLAN_FOLDER is {plan_folder_path}.</{VIBE_WARNING_TAG}>"""
 
 
-PLAN_AGENT_EXIT = f"""<{VIBE_WARNING_TAG}>Plan mode has ended. You can now use editing tools and make changes to the system.</{VIBE_WARNING_TAG}>"""
+PLAN_AGENT_EXIT = f"""<{VIBE_WARNING_TAG}>Plan mode hass ended. You can now use editing tools and make changes to the system.</{VIBE_WARNING_TAG}>"""
 
 CHAT_AGENT_REMINDER = f"""<{VIBE_WARNING_TAG}>Chat mode is active. The user wants to have a conversation -- ask questions, get explanations, or discuss code and architecture. You MUST NOT make any edits, run any non-readonly tools, or otherwise make any changes to the system. This supersedes any other instructions you have received. Instead, you should:
 1. Answer the user's questions directly and comprehensively
