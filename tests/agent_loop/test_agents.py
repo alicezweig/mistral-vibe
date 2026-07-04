@@ -200,7 +200,7 @@ class TestAgentApplyToConfig:
 
         assert "ask_user_question" not in result.enabled_tools
         assert "grep" in result.enabled_tools
-        assert "read" in result.enabled_tools
+        assert "read_file" in result.enabled_tools
         assert "task" in result.enabled_tools
 
     def test_base_disabled_tools_filter_supports_glob_patterns(self) -> None:
@@ -460,7 +460,7 @@ class TestAgentSwitchAgent:
         assert "write_file" in plan_tool_names
         assert "edit" in plan_tool_names
         assert "grep" in plan_tool_names
-        assert "read" in plan_tool_names
+        assert "read_file" in plan_tool_names
         assert agent.agent_profile.name == BuiltinAgentName.PLAN
 
         # Verify write tools have "never" base permission
@@ -569,7 +569,7 @@ class TestPlanAgentToolRestriction:
 
         # Plan mode now has all tools available
         assert "grep" in tool_names
-        assert "read" in tool_names
+        assert "read_file" in tool_names
         assert "write_file" in tool_names
         assert "edit" in tool_names
 
