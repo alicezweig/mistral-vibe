@@ -94,7 +94,7 @@ class AgentProfile:
         )
 
 
-CHAT_AGENT_TOOLS = ["grep", "read_file", "ask_user_question", "task"]
+CHAT_AGENT_TOOLS = ["grep", "read_file", "ask_user_question", "task", "web_search"]
 
 
 def _plan_overrides() -> dict[str, Any]:
