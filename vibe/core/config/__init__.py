@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TypeVar
+
 from vibe.core.config._defaults import (
     DEFAULT_CONSOLE_BASE_URL,
     DEFAULT_MISTRAL_API_ENV_KEY,
@@ -33,6 +35,9 @@ from vibe.core.config.layer import (
     TrustResolutionError,
     UntrustedLayerError,
 )
+from vibe.core.config.layers.agent_profile import AgentProfileLayer
+from vibe.core.config.layers.default import DefaultConfigLayer
+from vibe.core.config.layers.discovered import DiscoveredConfigLayer
 from vibe.core.config.models import (
     THINKING_LEVELS,
     ConnectorConfig,
@@ -45,6 +50,7 @@ from vibe.core.config.models import (
     MCPStreamableHttp,
     MissingAPIKeyError,
     ModelConfig,
+    OtelRedactionMode,
     OtelSpanExporterConfig,
     ProjectContextConfig,
     ProviderConfig,
@@ -72,6 +78,7 @@ from vibe.core.config.schema import (
     MergeFieldMetadata,
     WithConcatMerge,
     WithConflictMerge,
+    WithDeepMerge,
     WithReplaceMerge,
     WithShallowMerge,
     WithUnionMerge,
@@ -84,6 +91,10 @@ from vibe.core.config.types import (
 )
 from vibe.core.config.vibe_schema import VibeConfigSchema
 from vibe.core.prompts import MissingPromptFileError
+
+AnyVibeConfig = VibeConfig | VibeConfigSchema
+
+VibeConfigT = TypeVar("VibeConfigT", bound=AnyVibeConfig)
 
 __all__ = [
     "DEFAULT_CONSOLE_BASE_URL",
@@ -100,6 +111,8 @@ __all__ = [
     "MISSING_BACKING_STORE_DATA_FINGERPRINT",
     "THINKING_LEVELS",
     "AddOperationPatch",
+    "AgentProfileLayer",
+    "AnyVibeConfig",
     "ConfigChangeCallback",
     "ConfigChangeEvent",
     "ConfigDefinitionError",
@@ -110,6 +123,8 @@ __all__ = [
     "ConfigPatchApplicationError",
     "ConfigSchema",
     "ConnectorConfig",
+    "DefaultConfigLayer",
+    "DiscoveredConfigLayer",
     "DuplicateMergeMetadataError",
     "EmptyLayerError",
     "ExperimentsConfig",
@@ -126,6 +141,7 @@ __all__ = [
     "MissingAPIKeyError",
     "MissingPromptFileError",
     "ModelConfig",
+    "OtelRedactionMode",
     "OtelSpanExporterConfig",
     "PatchOp",
     "ProjectContextConfig",
@@ -147,8 +163,10 @@ __all__ = [
     "UntrustedLayerError",
     "VibeConfig",
     "VibeConfigSchema",
+    "VibeConfigT",
     "WithConcatMerge",
     "WithConflictMerge",
+    "WithDeepMerge",
     "WithReplaceMerge",
     "WithShallowMerge",
     "WithUnionMerge",

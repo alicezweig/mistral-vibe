@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+import tomllib
 
 import pytest
 
 from tests import TESTS_ROOT
 from tests.conftest import build_test_agent_loop, build_test_vibe_config
 from tests.stubs.fake_backend import FakeBackend
+from vibe.core.agents._migration import migrate_agent_profile_config
 from vibe.core.agents.manager import AgentManager
 from vibe.core.agents.models import (
     BUILTIN_AGENTS,
@@ -19,8 +21,10 @@ from vibe.core.agents.models import (
     _deep_merge,
 )
 from vibe.core.config import VibeConfig
+from vibe.core.config.orchestrator_legacy import LegacyConfigOrchestrator
 from vibe.core.prompts import UtilityPrompt
 from vibe.core.tools.base import ToolPermission
+from vibe.core.tools.manager import ToolManager
 from vibe.core.types import LLMChunk, LLMMessage, LLMUsage, Role
 
 
@@ -189,39 +193,20 @@ class TestAgentApplyToConfig:
             "exit_plan_mode",
         }
 
-    def test_base_disabled_tools_are_filtered_from_profile_enabled_tools(self) -> None:
-        base = VibeConfig(
-            include_project_context=False,
-            include_prompt_detail=False,
-            disabled_tools=["ask_user_question"],
-        )
-
+    def test_disabled_tools_filter_profile_enabled_tools_at_runtime(self) -> None:
+        base = build_test_vibe_config(disabled_tools=["ask_*"])
         result = CHAT.apply_to_config(base)
+        manager = ToolManager(lambda: result)
 
-        assert "ask_user_question" not in result.enabled_tools
-        assert "grep" in result.enabled_tools
-        assert "read_file" in result.enabled_tools
-        assert "task" in result.enabled_tools
+        assert "ask_user_question" in result.enabled_tools
+        available_tools = manager.available_tools
 
-    def test_base_disabled_tools_filter_supports_glob_patterns(self) -> None:
-        base = VibeConfig(
-            include_project_context=False,
-            include_prompt_detail=False,
-            disabled_tools=["ask_*"],
-        )
-        agent = AgentProfile(
-            name="custom",
-            display_name="Custom",
-            description="",
-            safety=AgentSafety.NEUTRAL,
-            overrides={"enabled_tools": ["grep", "ask_user_question", "ask_extra"]},
-        )
+        assert "ask_user_question" not in available_tools
+        assert "grep" in available_tools
+        assert "read_file" in available_tools
+        assert "task" in available_tools
 
-        result = agent.apply_to_config(base)
-
-        assert result.enabled_tools == ["grep"]
-
-    def test_empty_base_disabled_tools_leaves_enabled_tools_untouched(self) -> None:
+    def test_empty_disabled_tools_leaves_enabled_tools_untouched(self) -> None:
         base = VibeConfig(
             include_project_context=False,
             include_prompt_detail=False,
@@ -335,10 +320,94 @@ class TestAgentApplyToConfig:
             )
 
 
+class TestAgentProfileMigration:
+    def test_base_disabled_migrates_to_disabled_tools(self) -> None:
+        data = {
+            "display_name": "Legacy",
+            "disabled_tools": ["bash"],
+            "base_disabled": ["exit_plan_mode", "bash"],
+        }
+
+        changed = migrate_agent_profile_config(data)
+
+        assert changed is True
+        assert data == {
+            "display_name": "Legacy",
+            "disabled_tools": ["bash", "exit_plan_mode"],
+        }
+
+    def test_malformed_base_disabled_is_left_untouched(self) -> None:
+        data = {"base_disabled": "exit_plan_mode"}
+
+        changed = migrate_agent_profile_config(data)
+
+        assert changed is False
+        assert data == {"base_disabled": "exit_plan_mode"}
+
+    def test_from_toml_normalizes_legacy_profile_in_memory(
+        self, tmp_path: Path
+    ) -> None:
+        agent_file = tmp_path / "legacy.toml"
+        agent_file.write_text(
+            "\n".join([
+                'display_name = "Legacy"',
+                'disabled_tools = ["bash"]',
+                'base_disabled = ["exit_plan_mode", "bash"]',
+            ]),
+            encoding="utf-8",
+        )
+
+        agent = AgentProfile.from_toml(agent_file)
+        result = agent.apply_to_config(
+            build_test_vibe_config(disabled_tools=["ask_user_question"])
+        )
+
+        assert agent.overrides == {"disabled_tools": ["bash", "exit_plan_mode"]}
+        assert result.disabled_tools == ["ask_user_question", "bash", "exit_plan_mode"]
+
+    def test_agent_manager_migrates_legacy_profile_files(self, tmp_path: Path) -> None:
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        agent_file = agents_dir / "legacy.toml"
+        agent_file.write_text(
+            "\n".join([
+                'display_name = "Legacy"',
+                'base_disabled = ["exit_plan_mode"]',
+            ]),
+            encoding="utf-8",
+        )
+        config = build_test_vibe_config(agent_paths=[agents_dir])
+
+        manager = AgentManager(LegacyConfigOrchestrator(config), initial_agent="legacy")
+
+        assert manager.active_profile.overrides == {
+            "disabled_tools": ["exit_plan_mode"]
+        }
+        with agent_file.open("rb") as file:
+            persisted = tomllib.load(file)
+        assert "base_disabled" not in persisted
+        assert persisted["disabled_tools"] == ["exit_plan_mode"]
+
+    def test_agent_manager_continues_when_profile_migration_fails(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fail_migration(search_paths: list[Path]) -> None:
+            raise RuntimeError("migration failed")
+
+        monkeypatch.setattr(
+            "vibe.core.agents.manager.migrate_agent_profile_files", fail_migration
+        )
+        config = build_test_vibe_config()
+
+        manager = AgentManager(LegacyConfigOrchestrator(config))
+
+        assert "default" in manager.available_agents
+
+
 class TestAgentProfileOverrides:
     def test_default_agent_disables_exit_plan_mode(self) -> None:
         overrides = BUILTIN_AGENTS[BuiltinAgentName.DEFAULT].overrides
-        assert "exit_plan_mode" in overrides.get("base_disabled", [])
+        assert "exit_plan_mode" in overrides.get("disabled_tools", [])
 
     def test_auto_approve_agent_sets_bypass_tool_permissions(self) -> None:
         overrides = BUILTIN_AGENTS[BuiltinAgentName.AUTO_APPROVE].overrides
@@ -586,7 +655,7 @@ class TestPlanAgentToolRestriction:
 class TestAgentManagerFiltering:
     def test_enabled_agents_filters_to_only_enabled(self) -> None:
         config = build_test_vibe_config(enabled_agents=["default", "plan"])
-        manager = AgentManager(lambda: config)
+        manager = AgentManager(LegacyConfigOrchestrator(config))
 
         agents = manager.available_agents
         assert len(agents) < len(manager._discovered)
@@ -599,7 +668,7 @@ class TestAgentManagerFiltering:
         config = build_test_vibe_config(
             disabled_agents=["auto-approve", "accept-edits"]
         )
-        manager = AgentManager(lambda: config)
+        manager = AgentManager(LegacyConfigOrchestrator(config))
 
         agents = manager.available_agents
         assert len(agents) < len(manager._discovered)
@@ -613,7 +682,7 @@ class TestAgentManagerFiltering:
             enabled_agents=["default"],
             disabled_agents=["default"],  # Should be ignored
         )
-        manager = AgentManager(lambda: config)
+        manager = AgentManager(LegacyConfigOrchestrator(config))
 
         agents = manager.available_agents
         assert len(agents) == 1
@@ -621,7 +690,7 @@ class TestAgentManagerFiltering:
 
     def test_glob_pattern_matching(self) -> None:
         config = build_test_vibe_config(disabled_agents=["auto-*", "accept-*"])
-        manager = AgentManager(lambda: config)
+        manager = AgentManager(LegacyConfigOrchestrator(config))
 
         agents = manager.available_agents
         assert "default" in agents
@@ -631,7 +700,7 @@ class TestAgentManagerFiltering:
 
     def test_regex_pattern_matching(self) -> None:
         config = build_test_vibe_config(enabled_agents=["re:^(default|plan)$"])
-        manager = AgentManager(lambda: config)
+        manager = AgentManager(LegacyConfigOrchestrator(config))
 
         agents = manager.available_agents
         assert len(agents) == 2
@@ -640,7 +709,7 @@ class TestAgentManagerFiltering:
 
     def test_empty_enabled_agents_returns_all(self) -> None:
         config = build_test_vibe_config(enabled_agents=[])
-        manager = AgentManager(lambda: config)
+        manager = AgentManager(LegacyConfigOrchestrator(config))
 
         agents = manager.available_agents
         assert "default" in agents
@@ -650,21 +719,21 @@ class TestAgentManagerFiltering:
 
     def test_install_required_agents_hidden_by_default(self) -> None:
         config = build_test_vibe_config()
-        manager = AgentManager(lambda: config)
+        manager = AgentManager(LegacyConfigOrchestrator(config))
 
         agents = manager.available_agents
         assert "lean" not in agents
 
     def test_install_required_agents_visible_when_installed(self) -> None:
         config = build_test_vibe_config(installed_agents=["lean"])
-        manager = AgentManager(lambda: config)
+        manager = AgentManager(LegacyConfigOrchestrator(config))
 
         agents = manager.available_agents
         assert "lean" in agents
 
     def test_get_subagents_respects_filtering(self) -> None:
         config = build_test_vibe_config(disabled_agents=["explore"])
-        manager = AgentManager(lambda: config)
+        manager = AgentManager(LegacyConfigOrchestrator(config))
 
         subagents = manager.get_subagents()
         names = [a.name for a in subagents]

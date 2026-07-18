@@ -16,7 +16,7 @@ from vibe.core.audio_recorder.audio_recorder_port import (
     NoAudioInputDeviceError,
     RecordingMode,
 )
-from vibe.core.config import VibeConfig
+from vibe.core.config import AnyVibeConfig
 from vibe.core.logger import logger
 from vibe.core.transcribe.transcribe_client_port import (
     TranscribeDone,
@@ -40,7 +40,7 @@ TRANSCRIPTION_DRAIN_TIMEOUT = 10.0
 class VoiceManager:
     def __init__(
         self,
-        config_getter: Callable[[], VibeConfig],
+        config_getter: Callable[[], AnyVibeConfig],
         audio_recorder: AudioRecorderPort,
         transcribe_client: TranscribeClientPort | None,
         telemetry_client: TelemetryClient | None = None,
@@ -70,8 +70,6 @@ class VoiceManager:
         new_state = not self.is_enabled
         if not new_state:
             self.cancel_recording()
-
-        VibeConfig.save_updates({"voice_mode_enabled": new_state})
 
         for listener in self._listeners:
             try:
@@ -116,14 +114,13 @@ class VoiceManager:
         recording = self._audio_recorder.stop(wait_for_queue_drained=should_flush_queue)
         self._tracking.set_recording_duration(recording.duration)
 
-        if self._transcribe_task is not None:
+        task = self._transcribe_task
+        if task is not None:
             try:
-                await wait_for(
-                    self._transcribe_task, timeout=TRANSCRIPTION_DRAIN_TIMEOUT
-                )
+                await wait_for(task, timeout=TRANSCRIPTION_DRAIN_TIMEOUT)
             except TimeoutError:
                 logger.warning("Transcription task timed out, cancelling")
-                self._transcribe_task.cancel()
+                task.cancel()
                 self._on_audio_transcription_error("Transcription timed out")
             except CancelledError:
                 pass

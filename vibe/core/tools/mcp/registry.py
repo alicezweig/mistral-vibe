@@ -7,14 +7,17 @@ from enum import StrEnum, auto
 import hashlib
 from typing import cast
 
-from mcp.client.auth import OAuthFlowError
+from mcp.client.auth import OAuthClientProvider, OAuthFlowError
 from vibe.core.auth.mcp_oauth import (
     Fingerprint,
     KeyringTokenStorage,
     MCPOAuthError,
+    MCPOAuthInvalidGrant,
     MCPOAuthLoginFailed,
+    MCPOAuthTransientRefreshError,
     build_oauth_provider,
     perform_oauth_login,
+    unwrap_oauth_refresh_error,
 )
 from vibe.core.config import MCPHttp, MCPOAuth, MCPServer, MCPStdio, MCPStreamableHttp
 from vibe.core.logger import logger
@@ -26,6 +29,7 @@ from vibe.core.tools.mcp.tools import (
     list_tools_http,
     list_tools_stdio,
 )
+from vibe.core.tools.remote import RemoteTool
 from vibe.core.utils import run_sync
 
 
@@ -50,6 +54,7 @@ class MCPRegistry:
         self._servers_by_alias: dict[str, MCPServer] = {}
         self._needs_auth: set[str] = set()
         self._oauth_locks: dict[str, asyncio.Lock] = {}
+        self._failed: dict[str, str] = {}
 
     @staticmethod
     def _server_key(srv: MCPServer) -> str:
@@ -93,12 +98,19 @@ class MCPRegistry:
                 logger.warning(
                     "MCP discovery failed for server %r: %s", srv.name, result
                 )
+                self._failed[srv.name] = str(result)
                 continue
             if result is None:
                 continue
             self._store_cache_entry(key, srv.name, result)
             out.update(result)
         return out
+
+    def pop_failed(self) -> dict[str, str]:
+        """Return and clear the per-server discovery errors accumulated so far."""
+        errors = dict(self._failed)
+        self._failed.clear()
+        return errors
 
     def _store_cache_entry(
         self, key: str, alias: str, tools: dict[str, type[BaseTool]]
@@ -143,6 +155,7 @@ class MCPRegistry:
             )
         except Exception as exc:
             logger.warning("MCP HTTP discovery failed for %s: %s", url, exc)
+            self._failed[srv.name] = str(exc)
             return None
 
         tools: dict[str, type[BaseTool]] = {}
@@ -210,19 +223,8 @@ class MCPRegistry:
         provider = build_oauth_provider(
             srv, redirect_handler=redirect_handler, callback_handler=callback_handler
         )
-        try:
-            remotes = await list_tools_http(
-                url,
-                headers=srv.http_headers(),
-                auth=provider,
-                startup_timeout_sec=srv.startup_timeout_sec,
-            )
-        except OAuthFlowError as exc:
-            await self.mark_oauth_failure(alias)
-            logger.warning("MCP OAuth discovery failed for %s: %s", alias, exc)
-            return None
-        except Exception as exc:
-            logger.warning("MCP HTTP discovery failed for %s: %s", url, exc)
+        remotes = await self._list_oauth_remotes(srv, url=url, provider=provider)
+        if remotes is None:
             return None
 
         self._needs_auth.discard(alias)
@@ -253,6 +255,48 @@ class MCPRegistry:
                 )
         return tools
 
+    async def _list_oauth_remotes(
+        self,
+        srv: MCPHttp | MCPStreamableHttp,
+        *,
+        url: str,
+        provider: OAuthClientProvider,
+    ) -> list[RemoteTool] | None:
+        alias = srv.name
+        try:
+            return await list_tools_http(
+                url,
+                headers=srv.http_headers(),
+                auth=provider,
+                startup_timeout_sec=srv.startup_timeout_sec,
+            )
+        except Exception as exc:
+            # auth-flow errors arrive wrapped in an ExceptionGroup; unwrap to decide
+            match unwrap_oauth_refresh_error(exc):
+                case MCPOAuthInvalidGrant() as matched:
+                    await self.mark_oauth_failure(alias)
+                    logger.warning(
+                        "MCP OAuth refresh permanently failed for %s: %s",
+                        alias,
+                        matched,
+                    )
+                case MCPOAuthTransientRefreshError() as matched:
+                    self.mark_needs_auth(alias)
+                    logger.warning(
+                        "MCP OAuth refresh transiently failed for %s: %s",
+                        alias,
+                        matched,
+                    )
+                case OAuthFlowError() as matched:
+                    self.mark_needs_auth(alias)
+                    logger.warning(
+                        "MCP OAuth discovery failed for %s: %s", alias, matched
+                    )
+                case None:
+                    logger.warning("MCP HTTP discovery failed for %s: %s", url, exc)
+                    self._failed[alias] = str(exc)
+        return None
+
     async def _discover_stdio(self, srv: MCPStdio) -> dict[str, type[BaseTool]] | None:
         cmd = srv.argv()
         if not cmd:
@@ -268,6 +312,7 @@ class MCPRegistry:
             )
         except Exception as exc:
             logger.warning("MCP stdio discovery failed for %r: %s", cmd, exc)
+            self._failed[srv.name] = str(exc)
             return None
 
         tools: dict[str, type[BaseTool]] = {}
@@ -304,6 +349,7 @@ class MCPRegistry:
         self._cache_keys_by_alias.clear()
         self._servers_by_alias.clear()
         self._needs_auth.clear()
+        self._failed.clear()
 
     def sync_active_servers(self, servers: list[MCPServer]) -> None:
         active = {srv.name: srv for srv in servers}

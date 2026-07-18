@@ -6,15 +6,20 @@ from pathlib import Path
 import shutil
 import tempfile
 
-from git import InvalidGitRepositoryError, Repo
-from git.exc import GitCommandError
-from giturlparse import parse as parse_git_url
-
 from vibe.core.teleport.errors import (
     ServiceTeleportError,
     ServiceTeleportNotSupportedError,
 )
 from vibe.core.utils import AsyncExecutor
+
+try:
+    from git import InvalidGitRepositoryError, Repo
+    from git.exc import GitCommandError
+    from giturlparse import parse as parse_git_url
+except ImportError as e:
+    raise ServiceTeleportError(
+        "Teleport requires git to be installed. Please install git and try again."
+    ) from e
 
 
 @dataclass
@@ -33,6 +38,8 @@ class GitRepoInfo:
     branch: str | None
     commit: str
     diff: str
+    default_branch: str | None = None
+    repo_root: Path | None = None
 
 
 class GitRepository:
@@ -77,6 +84,9 @@ class GitRepository:
         owner = parsed.owner
         repo_name = parsed.repo
         branch = None if repo.head.is_detached else repo.active_branch.name
+        default_branch = _remote_ref_branch_name(
+            await self._get_remote_default_branch(repo, parsed.name), parsed.name
+        )
         diff = await self._get_diff(repo)
 
         return GitRepoInfo(
@@ -87,6 +97,8 @@ class GitRepository:
             branch=branch,
             commit=commit,
             diff=diff,
+            default_branch=default_branch,
+            repo_root=_repo_root_path(repo),
         )
 
     async def fetch(self, remote: str = "origin") -> None:
@@ -260,3 +272,19 @@ class GitRepository:
     @staticmethod
     def _to_https_url(owner: str, repo: str) -> str:
         return f"https://github.com/{owner}/{repo}.git"
+
+
+def _remote_ref_branch_name(ref: str | None, remote: str) -> str | None:
+    if ref is None:
+        return None
+    prefix = f"{remote}/"
+    if ref.startswith(prefix):
+        return ref.removeprefix(prefix)
+    return ref
+
+
+def _repo_root_path(repo: Repo) -> Path | None:
+    working_tree_dir = repo.working_tree_dir
+    if not isinstance(working_tree_dir, str):
+        return None
+    return Path(working_tree_dir).resolve()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
@@ -9,13 +10,11 @@ from acp.schema import (
     AgentThoughtChunk,
     ContentToolCallContent,
     Implementation,
-    ModelInfo,
     PermissionOption,
     PermissionOptionKind,
     SessionConfigOptionSelect,
     SessionConfigSelectOption,
     SessionMode,
-    SessionModelState,
     SessionModeState,
     TextContentBlock,
     ToolCallProgress,
@@ -26,7 +25,7 @@ from acp.schema import (
 from vibe.acp.tools.session_update import resolve_kind, tool_call_session_update
 from vibe.acp.user_display_content import USER_DISPLAY_CONTENT_META_KEY
 from vibe.core.agents.models import AgentProfile, AgentType
-from vibe.core.config._settings import THINKING_LEVELS, ThinkingLevel
+from vibe.core.config.models import THINKING_LEVELS, ThinkingLevel
 from vibe.core.llm.format import ResolvedToolCall
 from vibe.core.proxy_setup import SUPPORTED_PROXY_VARS, get_current_proxy_settings
 from vibe.core.tools.permissions import RequiredPermission
@@ -162,24 +161,18 @@ def build_mode_state(
     return state, config
 
 
-def build_model_state(
-    models: list[ModelConfig], current_model_id: str
-) -> tuple[SessionModelState, SessionConfigOptionSelect]:
-    model_infos: list[ModelInfo] = []
-    config_options: list[SessionConfigSelectOption] = []
-
-    for model in models:
-        model_infos.append(ModelInfo(model_id=model.alias, name=model.alias))
-        config_options.append(
-            SessionConfigSelectOption(
-                value=model.alias, name=model.alias, description=model.name
-            )
+def build_model_config(
+    models: Mapping[str, ModelConfig] | list[ModelConfig], current_model_id: str
+) -> SessionConfigOptionSelect:
+    model_values = models.values() if isinstance(models, Mapping) else models
+    config_options = [
+        SessionConfigSelectOption(
+            value=model.alias, name=model.alias, description=model.name
         )
+        for model in model_values
+    ]
 
-    state = SessionModelState(
-        current_model_id=current_model_id, available_models=model_infos
-    )
-    config_option = SessionConfigOptionSelect(
+    return SessionConfigOptionSelect(
         id="model",
         name="Model",
         current_value=current_model_id,
@@ -187,7 +180,6 @@ def build_model_state(
         type="select",
         options=config_options,
     )
-    return state, config_option
 
 
 def make_thinking_response(

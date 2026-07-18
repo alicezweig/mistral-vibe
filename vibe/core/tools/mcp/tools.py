@@ -18,6 +18,11 @@ from mcp import ClientSession
 from mcp.client.auth import OAuthFlowError
 from mcp.client.stdio import StdioServerParameters, stdio_client
 from mcp.client.streamable_http import streamable_http_client
+from vibe.core.auth.mcp_oauth import (
+    MCPOAuthInvalidGrant,
+    MCPOAuthTransientRefreshError,
+    unwrap_oauth_refresh_error,
+)
 from vibe.core.logger import logger
 from vibe.core.tools.base import (
     BaseTool,
@@ -30,7 +35,7 @@ from vibe.core.tools.mcp_sampling import MCPSamplingHandler
 from vibe.core.tools.remote import MCPTool, MCPToolResult, RemoteTool, _OpenArgs
 from vibe.core.tools.ui import ToolResultDisplay
 from vibe.core.types import ToolStreamEvent
-from vibe.core.utils.http import build_ssl_context
+from vibe.core.utils.http import VibeAsyncHTTPClient, build_ssl_context
 from vibe.core.utils.io import decode_safe
 
 if TYPE_CHECKING:
@@ -118,8 +123,8 @@ def _parse_call_result(server: str, tool: str, result_obj: Any) -> MCPToolResult
 
 def create_vibe_mcp_http_client(
     headers: dict[str, str] | None, *, auth: httpx.Auth | None = None
-) -> httpx.AsyncClient:
-    return httpx.AsyncClient(
+) -> VibeAsyncHTTPClient:
+    return VibeAsyncHTTPClient(
         follow_redirects=True,
         headers=headers,
         auth=auth,
@@ -247,16 +252,33 @@ def create_mcp_http_proxy_tool_class(
                 async with self._oauth_runtime.lock:
                     result = await self._call_remote(payload, sampling_callback)
                 yield result
-            except OAuthFlowError as exc:
-                if self._oauth_runtime is not None:
-                    await self._oauth_runtime.failure_callback(self._server_name)
-                raise ToolError(
-                    f"MCP server '{self._server_name}' lost authentication. "
-                    "Stop the current turn and ask the user to run "
-                    f"`/mcp login {self._server_name}` to re-authenticate."
-                ) from exc
             except Exception as exc:
-                raise ToolError(f"MCP call failed: {exc}") from exc
+                # auth-flow errors arrive wrapped in an ExceptionGroup; unwrap to react
+                match unwrap_oauth_refresh_error(exc):
+                    case MCPOAuthInvalidGrant():
+                        if self._oauth_runtime is not None:
+                            await self._oauth_runtime.failure_callback(
+                                self._server_name
+                            )
+                        raise ToolError(
+                            f"MCP server '{self._server_name}' lost authentication. "
+                            "Stop the current turn and ask the user to run "
+                            f"`/mcp login {self._server_name}` to re-authenticate."
+                        ) from exc
+                    case MCPOAuthTransientRefreshError():
+                        raise ToolError(
+                            f"MCP server '{self._server_name}' had a transient token "
+                            "refresh error. Stored credentials were kept; retry "
+                            "shortly."
+                        ) from exc
+                    case OAuthFlowError():
+                        raise ToolError(
+                            f"MCP server '{self._server_name}' needs re-authentication."
+                            " Stop the current turn and ask the user to run "
+                            f"`/mcp login {self._server_name}`."
+                        ) from exc
+                    case None:
+                        raise ToolError(f"MCP call failed: {exc}") from exc
 
         @classmethod
         async def _call_remote(

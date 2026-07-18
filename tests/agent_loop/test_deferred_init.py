@@ -13,9 +13,10 @@ from tests.mock.utils import mock_llm_chunk
 from tests.stubs.fake_backend import FakeBackend
 from tests.stubs.fake_connector_registry import FakeConnectorRegistry
 from tests.stubs.fake_mcp_registry import FakeMCPRegistry
-from vibe.core import agent_loop as agent_loop_module
 from vibe.core.agent_loop import AgentLoop
+import vibe.core.agent_loop._loop as agent_loop_module
 from vibe.core.config import MCPStdio
+from vibe.core.config.orchestrator_legacy import LegacyConfigOrchestrator
 from vibe.core.telemetry.types import LaunchContext, TerminalEmulator
 from vibe.core.tools.manager import ToolManager
 from vibe.core.tools.mcp import AuthStatus
@@ -81,7 +82,9 @@ class TestCompleteInit:
         config = build_test_vibe_config(enable_connectors=True)
         with patch.object(AgentLoop, "_start_deferred_init"):
             loop = AgentLoop(
-                config=config, backend=FakeBackend(), defer_heavy_init=True
+                config_orchestrator=LegacyConfigOrchestrator(config),
+                backend=FakeBackend(),
+                defer_heavy_init=True,
             )
 
         assert loop.connector_registry is None
@@ -258,11 +261,12 @@ class TestDeferredInitPublicMethods:
         config = build_test_vibe_config(mcp_servers=[mcp_server])
         registry = FakeMCPRegistry()
 
+        loop._replace_base_config(config)
         with (
             patch.object(AgentLoop, "_create_mcp_registry", return_value=registry),
             patch.object(ToolManager, "integrate_all"),
         ):
-            await loop.reload_with_initial_messages(base_config=config)
+            await loop.reload_with_initial_messages()
 
         assert loop.mcp_registry is registry
         assert loop.tool_manager._mcp_registry is registry
@@ -294,7 +298,7 @@ class TestDeferredInitPublicMethods:
             defer_heavy_init=True,
             backend=FakeBackend([
                 [mock_llm_chunk(content="hello")],
-                [mock_llm_chunk(content="summary")],
+                [mock_llm_chunk(content="<summary>summary</summary>")],
             ]),
         )
         [_ async for _ in loop.act("Hello")]

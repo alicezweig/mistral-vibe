@@ -9,21 +9,22 @@ from urllib.parse import urljoin
 import httpx
 
 from vibe import __version__
-from vibe.core.config import ProviderConfig, VibeConfig, resolve_api_key
+from vibe.core.config import AnyVibeConfig, ProviderConfig, resolve_api_key
 from vibe.core.llm.format import ResolvedToolCall
 from vibe.core.logger import logger
 from vibe.core.telemetry.build_metadata import build_base_metadata
 from vibe.core.telemetry.types import (
     AttachmentKind,
     LaunchContext,
+    ProjectPickerTelemetryPayload,
+    RemoteProjectOutcome,
     TelemetryCallType,
-    TeleportCompletedPayload,
-    TeleportFailedPayload,
+    TeleportContextSummaryStatus,
     TeleportFailureDetails,
     TeleportFailureStage,
 )
 from vibe.core.utils import get_server_url_from_api_base, get_user_agent
-from vibe.core.utils.http import build_ssl_context
+from vibe.core.utils.http import VibeAsyncHTTPClient, build_ssl_context
 
 if TYPE_CHECKING:
     from vibe.core.agent_loop import ToolDecision
@@ -33,7 +34,7 @@ _DATALAKE_EVENTS_PATH = "/v1/datalake/events"
 
 
 def get_mistral_provider_and_api_key(
-    config: VibeConfig,
+    config: AnyVibeConfig,
 ) -> tuple[ProviderConfig, str] | None:
     """Resolve a Mistral provider and its API key, or None.
 
@@ -66,18 +67,20 @@ def _extract_file_extension(path: object) -> str | None:
 class TelemetryClient:
     def __init__(
         self,
-        config_getter: Callable[[], VibeConfig],
+        config_getter: Callable[[], AnyVibeConfig],
         session_id_getter: Callable[[], str | None] | None = None,
         parent_session_id_getter: Callable[[], str | None] | None = None,
         launch_context: LaunchContext | None = None,
         experiments_getter: Callable[[], dict[str, str]] | None = None,
+        user_plan_getter: Callable[[], str | None] | None = None,
     ) -> None:
         self._config_getter = config_getter
         self._session_id_getter = session_id_getter
         self._parent_session_id_getter = parent_session_id_getter
         self._launch_context = launch_context
         self._experiments_getter = experiments_getter
-        self._client: httpx.AsyncClient | None = None
+        self._user_plan_getter = user_plan_getter
+        self._client: VibeAsyncHTTPClient | None = None
         self._pending_tasks: set[asyncio.Task[Any]] = set()
         self.last_correlation_id: str | None = None
 
@@ -102,9 +105,9 @@ class TelemetryClient:
         return self._is_enabled() and self._get_mistral_api_key() is not None
 
     @property
-    def client(self) -> httpx.AsyncClient:
+    def client(self) -> VibeAsyncHTTPClient:
         if self._client is None:
-            self._client = httpx.AsyncClient(
+            self._client = VibeAsyncHTTPClient(
                 timeout=httpx.Timeout(5.0),
                 limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
                 verify=build_ssl_context(),
@@ -123,6 +126,12 @@ class TelemetryClient:
             return None
         return self._parent_session_id_getter()
 
+    @property
+    def user_plan(self) -> str | None:
+        if self._user_plan_getter is None:
+            return None
+        return self._user_plan_getter()
+
     def build_client_event_metadata(self) -> dict[str, Any]:
         experiments = (
             self._experiments_getter() if self._experiments_getter is not None else None
@@ -132,7 +141,14 @@ class TelemetryClient:
             session_id=self.session_id,
             parent_session_id=self.parent_session_id,
             experiments=experiments,
+            user_plan=self.user_plan,
         )
+
+    def _is_experimental_bash_tool_enabled(self) -> bool:
+        try:
+            return self._config_getter().experimental_bash_tool
+        except Exception:
+            return False
 
     def send_telemetry_event(
         self,
@@ -309,6 +325,7 @@ class TelemetryClient:
                 if lc and lc.terminal_emulator is not None
                 else None
             ),
+            "experimental_bash_tool": self._is_experimental_bash_tool_enabled(),
         }
         self.send_telemetry_event("vibe.new_session", payload)
 
@@ -375,12 +392,22 @@ class TelemetryClient:
         )
 
     def send_teleport_completed(
-        self, *, push_required: bool, nb_session_messages: int
+        self,
+        *,
+        push_required: bool,
+        nb_session_messages: int,
+        context_summary: TeleportContextSummaryStatus = "skipped",
+        context_summary_chars: int | None = None,
+        project_picker: ProjectPickerTelemetryPayload | None = None,
     ) -> None:
-        payload: TeleportCompletedPayload = {
+        payload: dict[str, object] = {
             "push_required": push_required,
             "nb_session_messages": nb_session_messages,
+            "context_summary": context_summary,
+            "context_summary_chars": context_summary_chars,
         }
+        if project_picker is not None:
+            payload.update(project_picker)
         self.send_telemetry_event("vibe.teleport_completed", dict(payload))
 
     def send_teleport_failed(
@@ -390,13 +417,29 @@ class TelemetryClient:
         error_class: str,
         push_required: bool,
         nb_session_messages: int,
+        context_summary: TeleportContextSummaryStatus = "skipped",
+        context_summary_chars: int | None = None,
         error_details: TeleportFailureDetails | None = None,
+        project_picker: ProjectPickerTelemetryPayload | None = None,
     ) -> None:
-        payload = TeleportFailedPayload(
-            stage=stage,
-            error_class=error_class,
-            push_required=push_required,
-            nb_session_messages=nb_session_messages,
+        payload: dict[str, object] = {
+            "stage": stage,
+            "error_class": error_class,
+            "push_required": push_required,
+            "nb_session_messages": nb_session_messages,
+            "context_summary": context_summary,
+            "context_summary_chars": context_summary_chars,
             **(error_details or {}),
-        )
+        }
+        if project_picker is not None:
+            payload.update(project_picker)
         self.send_telemetry_event("vibe.teleport_failed", dict(payload))
+
+    def send_remote_project_configured(
+        self,
+        *,
+        outcome: RemoteProjectOutcome,
+        project_picker: ProjectPickerTelemetryPayload,
+    ) -> None:
+        payload: dict[str, object] = {"outcome": outcome, **project_picker}
+        self.send_telemetry_event("vibe.remote_project_configured", dict(payload))

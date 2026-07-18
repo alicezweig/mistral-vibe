@@ -18,7 +18,6 @@ from vibe.core.audio_recorder.audio_recorder_port import (
     AudioBackendUnavailableError,
     NoAudioInputDeviceError,
 )
-from vibe.core.config import VibeConfig
 from vibe.core.transcribe.transcribe_client_port import (
     TranscribeDone,
     TranscribeError,
@@ -179,6 +178,47 @@ class TestStopRecording:
         assert manager.transcribe_state == TranscribeState.IDLE
 
     @pytest.mark.asyncio
+    async def test_stop_survives_task_cleared_during_drain(self) -> None:
+        import asyncio
+
+        class HangingTranscribeClient:
+            def __init__(self, provider=None, model=None) -> None:
+                pass
+
+            async def transcribe(self, audio_stream):
+                await asyncio.Event().wait()
+                return
+                yield
+
+            async def close(self) -> None:
+                pass
+
+        recorder = FakeAudioRecorder()
+        config = build_test_vibe_config(voice_mode_enabled=True)
+        manager = VoiceManager(
+            config_getter=lambda: config,
+            audio_recorder=recorder,
+            transcribe_client=HangingTranscribeClient(),
+        )
+        manager.start_recording()
+        task = manager._transcribe_task
+        assert task is not None
+
+        async def clear_task_during_drain() -> None:
+            await asyncio.sleep(0)
+            manager._transcribe_task = None
+
+        clearer = asyncio.create_task(clear_task_during_drain())
+        with patch(
+            "vibe.cli.voice_manager.voice_manager.TRANSCRIPTION_DRAIN_TIMEOUT", 0.01
+        ):
+            await manager.stop_recording()
+        await clearer
+        task.cancel()
+
+        assert manager.transcribe_state == TranscribeState.IDLE
+
+    @pytest.mark.asyncio
     async def test_stop_recovers_when_no_audio_was_sent(self) -> None:
         client = FakeTranscribeClient(
             events=[
@@ -249,21 +289,18 @@ class TestCancelRecording:
 
 
 class TestToggleVoiceMode:
-    @patch.object(VibeConfig, "save_updates")
-    def test_toggle_enables(self, _mock_save) -> None:
+    def test_toggle_enables(self) -> None:
         manager, _, _ = _make_manager(voice_mode_enabled=False)
         result = manager.toggle_voice_mode()
         assert result == VoiceToggleResult(enabled=True)
 
-    @patch.object(VibeConfig, "save_updates")
-    def test_toggle_disables(self, _mock_save) -> None:
+    def test_toggle_disables(self) -> None:
         manager, _, _ = _make_manager(voice_mode_enabled=True)
         result = manager.toggle_voice_mode()
         assert result == VoiceToggleResult(enabled=False)
 
     @pytest.mark.asyncio
-    @patch.object(VibeConfig, "save_updates")
-    async def test_toggle_disable_cancels_active_recording(self, _mock_save) -> None:
+    async def test_toggle_disable_cancels_active_recording(self) -> None:
         manager, _, _ = _make_manager(voice_mode_enabled=True)
         manager.start_recording()
         manager.toggle_voice_mode()
@@ -279,8 +316,7 @@ class TestListeners:
         manager.start_recording()
         assert listener.state_changes == [TranscribeState.RECORDING]
 
-    @patch.object(VibeConfig, "save_updates")
-    def test_listener_notified_on_voice_mode_change(self, _mock_save) -> None:
+    def test_listener_notified_on_voice_mode_change(self) -> None:
         manager, _, _ = _make_manager(voice_mode_enabled=False)
         listener = StateListener()
         manager.add_listener(listener)

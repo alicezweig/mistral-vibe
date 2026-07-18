@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from vibe.core.agents._migration import migrate_agent_profile_files
 from vibe.core.agents.diagnostics import excluded_agent_message
 from vibe.core.agents.models import (
     BUILTIN_AGENTS,
@@ -17,18 +17,20 @@ from vibe.core.paths import dedup_paths
 from vibe.core.utils import name_matches
 
 if TYPE_CHECKING:
-    from vibe.core.config import VibeConfig
+    from vibe.core.config import AnyVibeConfig
+    from vibe.core.config.orchestrator_port import ConfigOrchestratorPort
 
 
 class AgentManager:
     def __init__(
         self,
-        config_getter: Callable[[], VibeConfig],
+        orchestrator: ConfigOrchestratorPort[AnyVibeConfig],
         initial_agent: str = BuiltinAgentName.DEFAULT,
         allow_subagent: bool = False,
     ) -> None:
-        self._config_getter = config_getter
+        self._orchestrator = orchestrator
         self._search_paths = self._compute_search_paths(self._config)
+        self._migrate_agent_profiles()
         self._discovered: dict[str, AgentProfile] = self._discover_agents()
 
         if custom_names := [n for n in self._discovered if n not in BUILTIN_AGENTS]:
@@ -54,11 +56,11 @@ class AgentManager:
                 f" with --agent."
             )
         self.active_profile = profile
-        self._cached_config: VibeConfig | None = None
+        self._cached_config: AnyVibeConfig | None = None
 
     @property
-    def _config(self) -> VibeConfig:
-        return self._config_getter()
+    def _config(self) -> AnyVibeConfig:
+        return self._orchestrator.config
 
     @property
     def available_agents(self) -> dict[str, AgentProfile]:
@@ -76,7 +78,7 @@ class AgentManager:
         return not name_matches(name, self._config.disabled_agents)
 
     @property
-    def config(self) -> VibeConfig:
+    def config(self) -> AnyVibeConfig:
         if self._cached_config is None:
             self._cached_config = self.active_profile.apply_to_config(self._config)
         return self._cached_config
@@ -84,6 +86,9 @@ class AgentManager:
     def switch_profile(self, name: str) -> None:
         self.active_profile = self.get_agent(name)
         self._cached_config = None
+
+    def preview_config(self, name: str) -> AnyVibeConfig:
+        return self.get_agent(name).apply_to_config(self._config)
 
     def register_agent(self, profile: AgentProfile) -> None:
         self._discovered[profile.name] = profile
@@ -93,7 +98,7 @@ class AgentManager:
         self._cached_config = None
 
     @staticmethod
-    def _compute_search_paths(config: VibeConfig) -> list[Path]:
+    def _compute_search_paths(config: AnyVibeConfig) -> list[Path]:
         mgr = get_harness_files_manager()
         return dedup_paths([
             *(p for p in config.agent_paths if p.is_dir()),
@@ -134,6 +139,12 @@ class AgentManager:
         except Exception as e:
             logger.warning("Failed to load agent at %s: %s", agent_file, e)
             return None
+
+    def _migrate_agent_profiles(self) -> None:
+        try:
+            migrate_agent_profile_files(self._search_paths)
+        except Exception as exc:
+            logger.warning("Failed to migrate agent profiles", exc_info=exc)
 
     def get_agent(self, name: str) -> AgentProfile:
         if agent := self.available_agents.get(name):

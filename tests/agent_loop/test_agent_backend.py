@@ -273,7 +273,7 @@ async def test_mcp_sampling_handler_uses_updated_config_when_agent_config_change
     assert isinstance(result1, CreateMessageResult)
     assert result1.model == "mistral-vibe-cli-latest"
 
-    agent._base_config = config2
+    agent._replace_base_config(config2)
     agent.agent_manager.invalidate_config()
     result2 = await handler(context, params)
     assert isinstance(result2, CreateMessageResult)
@@ -348,6 +348,22 @@ def _generic_provider_vibe_config() -> VibeConfig:
 
 
 @pytest.mark.asyncio
+async def test_mistral_metadata_includes_user_plan() -> None:
+    backend = FakeBackend([mock_llm_chunk(content="Response")])
+    agent = build_test_agent_loop(
+        config=_two_model_vibe_config("devstral-latest"), backend=backend
+    )
+    agent.set_user_plan("Team")
+
+    [_ async for _ in agent.act("Hello")]
+
+    assert len(backend.requests_metadata) == 1
+    metadata = backend.requests_metadata[0]
+    assert metadata is not None
+    assert metadata["user_plan"] == "Team"
+
+
+@pytest.mark.asyncio
 async def test_mistral_metadata_header_call_type_per_turn() -> None:
     """First LLM call in a turn is main_call; second call (after tools) is secondary_call."""
     tool_call = ToolCall(
@@ -390,7 +406,7 @@ async def test_mistral_metadata_header_call_type_per_turn() -> None:
 async def test_auto_compact_emits_summary_and_next_turn_metadata() -> None:
     """Compact emits summary then user-turn backend metadata in order."""
     backend = FakeBackend([
-        [mock_llm_chunk(content="<summary>")],
+        [mock_llm_chunk(content="<summary>done</summary>")],
         [mock_llm_chunk(content="<final>")],
     ])
     config = build_test_vibe_config(

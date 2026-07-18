@@ -3,14 +3,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 import platform
-import sys
 
 from vibe.cli.constants import CLIPBOARD_IMAGE_PASTE_SUPPORTED_SYSTEM
 
-ALT_KEY = "⌥" if sys.platform == "darwin" else "Alt"
+
+@dataclass(frozen=True)
+class CommandContext:
+    vibe_code_enabled: bool = False
 
 
-CommandAvailability = Callable[[bool], bool]
+CommandAvailability = Callable[[CommandContext], bool]
 
 
 @dataclass
@@ -32,7 +34,7 @@ class CommandRegistry:
             excluded_commands = []
         self._disabled_commands = set(excluded_commands)
         self._commands: dict[str, Command] = {}
-        self.refresh(vibe_code_enabled)
+        self.refresh(CommandContext(vibe_code_enabled))
 
     def _build_commands(self) -> dict[str, Command]:
         return {
@@ -109,7 +111,13 @@ class CommandRegistry:
                 aliases=frozenset(["/teleport"]),
                 description="Teleport session to Vibe Code Web",
                 handler="_teleport_command",
-                is_available=lambda vibe_code_enabled: vibe_code_enabled,
+                is_available=lambda ctx: ctx.vibe_code_enabled,
+            ),
+            "remote-project": Command(
+                aliases=frozenset(["/remote-project"]),
+                description="Select the Vibe Code Web project for this repository",
+                handler="_vibe_code_project_command",
+                is_available=lambda ctx: ctx.vibe_code_enabled,
             ),
             "proxy-setup": Command(
                 aliases=frozenset(["/proxy-setup"]),
@@ -153,7 +161,7 @@ class CommandRegistry:
             ),
             "rewind": Command(
                 aliases=frozenset(["/rewind"]),
-                description="Rewind to a previous message",
+                description="Rewind to a previous message (or press Esc twice)",
                 handler="_start_rewind_mode",
             ),
             "loop": Command(
@@ -180,8 +188,8 @@ class CommandRegistry:
     def commands(self) -> dict[str, Command]:
         return self._commands
 
-    def refresh(self, vibe_code_enabled: bool = False) -> None:
-        self._vibe_code_enabled = vibe_code_enabled
+    def refresh(self, context: CommandContext | None = None) -> None:
+        self._context = context or CommandContext()
         self._commands = {
             name: command
             for name, command in self._build_commands().items()
@@ -192,7 +200,7 @@ class CommandRegistry:
     def _is_command_available(self, command: Command) -> bool:
         if command.is_available is None:
             return True
-        return command.is_available(self._vibe_code_enabled)
+        return command.is_available(self._context)
 
     def _alias_map(self) -> dict[str, str]:
         return {
@@ -240,7 +248,7 @@ class CommandRegistry:
             "- `Ctrl+G` Edit input in external editor",
             "- `Ctrl+O` Toggle tool output view",
             "- `Shift+Tab` Cycle through agents (default, plan, ...)",
-            f"- `{ALT_KEY}+↑↓` / `Ctrl+P/N` Rewind to previous/next message",
+            "- `Esc Esc` Rewind to a previous message (when input is empty)",
             "",
             "### Special Features",
             "",

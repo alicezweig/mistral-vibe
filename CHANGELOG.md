@@ -5,6 +5,101 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.21.0] - 2026-07-17
+
+### Added
+
+- Registry skills content store and manifest for skill discovery
+- Config schema exposed through ACP
+- Checkpointer engine state model, owner union, and pending hunks
+
+### Changed
+
+- **[Breaking — hooks]** Hooks graduated from experimental; `hooks.toml` is now stable. Every hook `type` is renamed: `post_agent_turn` → `post_agent`, `before_tool` → `pre_tool`, `after_tool` → `post_tool` (the `hook_event_name` payload field is renamed to match). Update existing `hooks.toml` files accordingly.
+- `@file` mentions now inject as `read_file` tool calls
+- Telemetry routed through client-side redaction
+- Models field migration from list to dict
+- VibeConfig cutover prep with persisted-config read and orchestrator SSL parity
+- Reduced feedback survey frequency for users who already responded
+
+### Fixed
+
+- Duplicate model aliases deduplicated instead of failing config load
+- UTF-8 BOM stripped in `decode_safe`
+- UTF-8 BOM stripped from `SKILL.md` before parsing frontmatter
+- MCP server connection errors now surface in the TUI
+- MCP discovery failures now surface in ACP sessions
+- stdin content no longer discarded when `/dev/tty` is unavailable
+- GitPython import deferred off the ACP startup path
+- `@file` mention suggestions stretched to full width
+- Blank line removed between approval options
+- Connector tool permission content scrolls instead of cropping
+- ConfigOrchestrator gained an explicit `copy()` for forking
+
+### Removed
+
+- `set_thinking` removed from the CLI
+- `enable_experimental_hooks` config flag (and `VIBE_ENABLE_EXPERIMENTAL_HOOKS` env var); hooks now load unconditionally when declared
+
+
+## [2.20.0] - 2026-07-13
+
+### Added
+
+- Warning when the Narrator is enabled without working audio output
+
+### Changed
+
+- Windows command prompt is now shell-aware
+- Hardened bash tool permissions and cross-platform shell handling
+- Rewind now triggers on a double `Esc` when the input is empty, with improved keybindings
+- Teleports now include summarized context
+- Renamed user plan labels (Teams → Team, Education → Student)
+- `ask_user_question` selection now works via mouse and supports free-text entry
+
+### Fixed
+
+- More robust SSE streaming in the generic backend
+- NoneType crash when stopping voice recording during a drain-timeout race
+- Windows ProactorEventLoop teardown tracebacks on `/exit`
+- MCP OAuth tokens are no longer dropped on transient refresh errors
+
+
+## [2.19.1] - 2026-07-08
+
+### Added
+
+- Experimental managed bash tool for running and tracking shell sessions
+- `--disabled-tools` CLI flag to turn off specific tools for a run
+- Per-tool description overrides via `<tools-dir>/prompts/<name>.md`
+- Setting to clear context when a plan is accepted
+- Discovered `AGENTS.md` files are now surfaced during `read_file` tool calls
+
+### Changed
+
+- Reactive compaction with a dedicated summary fallback and stricter summaries
+- User-invoked skills now load as a synthetic tool call
+- Tool config now merges via deep merge
+- MCP panel now refreshes silently in the background
+- Debounced the agent-switch spinner
+- Neutral color for keyboard shortcut hints
+- Falls back to the first available model when the active model is unknown
+- HTTP requests now honor CIDR notation in `NO_PROXY`
+- History now loads lazily on resume, and session writes are off the event loop
+- Faster startup by deferring heavy imports
+- PII and identifying paths are now scrubbed from Sentry reports
+
+### Fixed
+
+- Rewind now happens in place instead of forking the session
+- No longer includes pydantic URLs in error messages
+- Text can now be scrolled while selecting at the chat bottom
+- Click text selection is now scoped to word and paragraph
+- DuplicateIds crash when the recording UI starts twice
+- Git subprocess output is now decoded as UTF-8
+- Corrected the truncated indicator position and removed a duplicate fetch link
+
+
 ## [2.19.0] - 2026-07-03
 
 ### Added

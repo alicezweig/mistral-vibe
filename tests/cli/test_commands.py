@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from vibe.cli.commands import Command, CommandRegistry
+from vibe.cli.commands import Command, CommandContext, CommandRegistry
 
 
 class TestCommandRegistry:
@@ -69,6 +69,13 @@ class TestCommandRegistry:
         assert registry.get_command_name("/teleport") == "teleport"
         assert registry.has_command("teleport")
 
+    def test_teleport_command_registration_uses_latest_context(self) -> None:
+        registry = CommandRegistry(vibe_code_enabled=True)
+        assert registry.get_command_name("/teleport") == "teleport"
+
+        registry.refresh(CommandContext(vibe_code_enabled=False))
+        assert registry.get_command_name("/teleport") is None
+
     def test_teleport_help_text_uses_resolved_context(self) -> None:
         registry = CommandRegistry()
         assert "/teleport" not in registry.get_help_text()
@@ -76,6 +83,16 @@ class TestCommandRegistry:
         eligible_registry = CommandRegistry(vibe_code_enabled=True)
         assert eligible_registry.get("teleport") is not None
         assert "/teleport" in eligible_registry.get_help_text()
+
+    def test_vibe_code_project_command_registered_when_vibe_code_enabled(self) -> None:
+        registry = CommandRegistry(vibe_code_enabled=True)
+
+        assert registry.get_command_name("/remote-project") == "remote-project"
+        result = registry.parse_command("/remote-project")
+        assert result is not None
+        _, cmd, cmd_args = result
+        assert cmd.handler == "_vibe_code_project_command"
+        assert cmd_args == ""
 
     def test_help_text_lists_commands_alphabetically(self) -> None:
         registry = CommandRegistry()

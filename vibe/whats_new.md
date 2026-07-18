@@ -1,3 +1,4 @@
-# What's new in v2.19.0
+# What's new in v2.21.0
 
-- **Git worktrees**: New `--worktree NAME` flag creates or reuses a git worktree on a branch and runs Vibe inside it
+- **Hooks are now stable** (previously experimental). Three types: `post_agent` (after an agent turn), `pre_tool` (before a tool runs), `post_tool` (after a tool runs). Declared in `.vibe/hooks.toml` or `~/.vibe/hooks.toml`; no opt-in flag. Breaking: types renamed from the experimental version (`post_agent_turn` → `post_agent`, `before_tool` → `pre_tool`, `after_tool` → `post_tool`). Docs: https://docs.mistral.ai/vibe/code/cli/hooks.
+- **@file mentions**: Mentioned files are now read automatically via `read_file` tool calls.
