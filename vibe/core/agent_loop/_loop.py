@@ -353,7 +353,7 @@ class AgentLoop(AgentLoopHooksMixin):  # noqa: PLR0904
         self,
         config_orchestrator: ConfigOrchestrator[VibeConfigSchema],
         *,
-        agent_name: str = BuiltinAgentName.DEFAULT,
+        agent_name: str = BuiltinAgentName.CHAT,
         message_observer: Callable[[LLMMessage], None] | None = None,
         max_turns: int | None = None,
         max_price: float | None = None,

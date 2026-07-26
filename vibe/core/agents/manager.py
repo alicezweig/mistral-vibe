@@ -25,7 +25,7 @@ class AgentManager:
     def __init__(
         self,
         orchestrator: ConfigOrchestrator[VibeConfigSchema],
-        initial_agent: str = BuiltinAgentName.DEFAULT,
+        initial_agent: str = BuiltinAgentName.CHAT,
         allow_subagent: bool = False,
     ) -> None:
         self._orchestrator = orchestrator

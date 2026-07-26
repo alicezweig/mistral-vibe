@@ -33,7 +33,7 @@ def run_programmatic(  # noqa: PLR0913, PLR0917
     max_session_tokens: int | None = None,
     output_format: OutputFormat = OutputFormat.TEXT,
     previous_messages: list[LLMMessage] | None = None,
-    agent_name: str = BuiltinAgentName.DEFAULT,
+    agent_name: str = BuiltinAgentName.CHAT,
     client_metadata: ClientMetadata = _DEFAULT_CLIENT_METADATA,
     teleport: bool = False,
     teleport_project_id: str | None = None,

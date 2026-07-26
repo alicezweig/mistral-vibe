@@ -358,7 +358,7 @@ class VibeConfigSchema(ConfigSchema):
         ),
     )
     default_agent: Annotated[str, WithReplaceMerge()] = Field(
-        default=BuiltinAgentName.DEFAULT,
+        default=BuiltinAgentName.CHAT,
         description=(
             "Agent profile to use when no --agent flag is passed. "
             "Builtin: default, plan, accept-edits, auto-approve. "
