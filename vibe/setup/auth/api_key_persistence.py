@@ -7,13 +7,13 @@ from keyring.errors import KeyringError, NoKeyringError, PasswordDeleteError
 
 from vibe.core.config import DEFAULT_PROVIDERS, ProviderConfig
 from vibe.core.config.default_orchestrator import build_default_orchestrator
-from vibe.core.logger import logger
 from vibe.core.paths import GLOBAL_ENV_FILE
 from vibe.core.telemetry.send import TelemetryClient
 from vibe.core.telemetry.types import LaunchContext
 from vibe.core.types import Backend
 from vibe.core.utils.concurrency import run_sync
-from vibe.core.utils.keyring import delete_api_key_from_keyring, set_api_key_in_keyring
+from vibe.observability.logging import logger
+from vibe.utils.keyring import delete_api_key_from_keyring, set_api_key_in_keyring
 
 
 def _save_api_key_to_env_file(env_key: str, api_key: str) -> None:
@@ -44,6 +44,27 @@ def resolve_api_key_provider(provider: ProviderConfig | None = None) -> Provider
     if resolved_provider.api_key_env_var:
         return resolved_provider
     return _get_mistral_provider()
+
+
+def persist_provider_to_config(provider: ProviderConfig) -> bool:
+    orchestrator = run_sync(build_default_orchestrator())
+    # exclude_defaults avoids pinning today's field defaults (api_style,
+    # reasoning_field_name, empty project_id/region, extra_headers) into config.toml.
+    payload = provider.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
+    failures = run_sync(
+        orchestrator.upsert_field(
+            "/providers", key_field="name", value=payload, reason="onboarding"
+        )
+    )
+    if failures:
+        for failure in failures:
+            logger.error(
+                "Failed to persist provider to config name=%s",
+                provider.name,
+                exc_info=failure,
+            )
+        return False
+    return True
 
 
 def persist_api_key(

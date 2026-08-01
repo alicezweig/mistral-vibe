@@ -70,14 +70,12 @@ class AnthropicMapper:
 
     def _convert_assistant_message(self, msg: LLMMessage) -> dict[str, Any]:
         content: list[dict[str, Any]] = []
-        if msg.reasoning_content:
-            block: dict[str, Any] = {
+        if msg.reasoning_content and msg.reasoning_signature:
+            content.append({
                 "type": "thinking",
                 "thinking": msg.reasoning_content,
-            }
-            if msg.reasoning_signature:
-                block["signature"] = msg.reasoning_signature
-            content.append(block)
+                "signature": msg.reasoning_signature,
+            })
         if msg.content:
             content.append({"type": "text", "text": msg.content})
         if msg.tool_calls:
@@ -178,7 +176,9 @@ class AnthropicMapper:
                 )
 
         usage_data = data.get("usage", {})
-        # Total input tokens = input_tokens + cache_creation + cache_read
+        # Anthropic excludes cached tokens from input_tokens, so fold cache
+        # creation and cache read back in to match the OpenTelemetry convention
+        # that prompt_tokens includes cached tokens.
         total_input_tokens = (
             usage_data.get("input_tokens", 0)
             + usage_data.get("cache_creation_input_tokens", 0)
@@ -187,6 +187,7 @@ class AnthropicMapper:
         usage = LLMUsage(
             prompt_tokens=total_input_tokens,
             completion_tokens=usage_data.get("output_tokens", 0),
+            cached_tokens=usage_data.get("cache_read_input_tokens", 0),
         )
 
         return LLMChunk(
@@ -414,7 +415,11 @@ class AnthropicAdapter(APIAdapter):
         )
         return LLMChunk(
             message=LLMMessage(role=Role.assistant, content=None),
-            usage=LLMUsage(prompt_tokens=total_input_tokens, completion_tokens=0),
+            usage=LLMUsage(
+                prompt_tokens=total_input_tokens,
+                completion_tokens=0,
+                cached_tokens=usage_data.get("cache_read_input_tokens", 0),
+            ),
         )
 
     def _parse_content_block_start(self, data: dict[str, Any]) -> LLMChunk | None:

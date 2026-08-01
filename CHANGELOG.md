@@ -5,6 +5,72 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.2] - 2026-07-30
+
+ ### Added
+
+- Skill-creator built-in skill: a guided flow to author, update, and delete your own skills
+- Browser sign-in can target a custom login domain for self-hosted or private-gateway deployments
+- Session stats now track provider cache-hit (cached) tokens
+
+### Changed
+
+- Redesigned `/config` as a searchable, full-screen settings browser with typed edit modals and per-layer origin display
+- App-server protocol extended and packaged as a standalone `vibe-app-server` binary for desktop integration
+
+### Fixed
+
+- Cached-token counts now reported in session stats instead of always zero
+- Zed ACP packaging preserves symlinks by shipping `.tar.gz` archives
+- `grep` result chips open the correct file and no longer leak absolute host paths into context (ACP)
+- ACP `/rewind` truncates in place instead of forking
+- Extra fields in the whoami response no longer rejected
+- ACP session history sorted by recency
+- Blank permission prompt and duplicated user message in the ACP/VS Code webview
+- WhoAmI result again tolerates extra fields
+
+
+## [2.23.1] - 2026-07-28
+
+### Fixed
+
+- Crash when `@`-mentioning a file, which aborted the turn
+
+
+## [2.23.0] - 2026-07-28
+
+### Added
+
+- [A/B testing] OS-native managed shell tools
+- `vibe mcp add` and `vibe mcp remove` commands to add and remove remote MCP servers without editing TOML
+- Auto theme that follows terminal/OS appearance
+- ACP project links surface for desktop integration
+- Dense, grouped tool-call rendering in the TUI
+
+### Changed
+
+- Trust dialog now defaults to "Trust folder" and is simplified
+- Tool descriptions compressed to reduce context bloat
+- Smoother, faster scrolling in long conversations
+- Fixed unnecessary textual relayout computation on constant-size animation frames, removing lag spikes
+- Major internal refactor introducing a JSON-RPC 2.0 app server as the single runtime owner between delivery surfaces (TUI, `-p`, ACP) and the core engine, replacing direct `AgentLoop`/callback coupling with a typed, projected protocol
+
+### Fixed
+
+- Option+Left/Right word navigation in the chat input
+- Unsigned thinking blocks dropped on backend replay
+- SGR mouse protocol renegotiated when the emulator sends x10 bytes
+- Crash on `/resume` delete confirmation
+- Empty mapping treated as absent in CONCAT/UNION config merge
+- `LC_CTYPE` used instead of `LC_ALL` in the bash tool environment
+- Chunk text emitted before its tool call in the streaming loop
+- Text selection guarded against detached widgets
+- `OSError` on over-long `@`-mention autocompletion candidates
+- MCP registry created when the first server is added via `/mcp add`
+- CLI conversation ID preserved after teleport
+- Data-retention link accessible to non-admins
+
+
 ## [2.22.0] - 2026-07-21
 
 ### Added
