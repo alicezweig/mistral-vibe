@@ -14,13 +14,13 @@ class ModelDisplay(NoMarkupStatic):
         self._update_display()
 
     def _update_display(self) -> None:
-        from vibe.cli.textual_ui.app import VibeApp
+        pass
 
-        try:
-            model = cast(VibeApp, self.app).config.get_active_model()
-            self.update(f" · {model.alias}[{model.thinking}]")
-        except ValueError:
-            self.update("")
+        # try:
+        #     model = self.app.config.get_active_model()
+        #     self.update(f" · {model.alias}[{model.thinking}]")
+        # except ValueError:
+        #     self.update("")
 
     def refresh_display(self) -> None:
         self._update_display()
